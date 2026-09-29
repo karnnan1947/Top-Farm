@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Root Menu -->
+    <menuitem id="menu_top_farm_root"
+              name="Top Farm"
+              web_icon="top_farm_core,static/description/icon.png"
+              groups="top_farm_core.group_farm_user"
+              sequence="25"/>
+
+    <!-- Farm Configuration Sub-menu -->
+    <menuitem id="menu_top_farm_config"
+              name="Farm Configuration"
+              parent="menu_top_farm_root"
+              sequence="100"/>
+
+    <!-- Farm Locations Action Menu -->
+    <menuitem id="menu_top_farm_locations"
+              name="Farm, Batch &amp; Cage Hierarchy"
+              parent="menu_top_farm_config"
+              action="action_top_farm_locations"
+              sequence="10"/>
+</odoo>

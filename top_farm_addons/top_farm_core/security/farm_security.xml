@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_top_farm" model="ir.module.category">
+        <field name="name">Poultry Farm Management</field>
+        <field name="description">Access rights for poultry farm operations, batches, and analytics.</field>
+        <field name="sequence">50</field>
+    </record>
+
+    <!-- Odoo 19: groups hang off a privilege (res.groups.category_id no longer exists) -->
+    <record id="res_groups_privilege_top_farm" model="res.groups.privilege">
+        <field name="name">Poultry Farm</field>
+        <field name="category_id" ref="module_category_top_farm"/>
+    </record>
+
+    <!-- Farm Operator / User -->
+    <record id="group_farm_user" model="res.groups">
+        <field name="name">Farm Operator / User</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_top_farm"/>
+        <field name="implied_ids" eval="[(4, ref('stock.group_stock_user'))]"/>
+    </record>
+
+    <!-- Farm Manager / Supervisor -->
+    <record id="group_farm_manager" model="res.groups">
+        <field name="name">Farm Manager / Supervisor</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_top_farm"/>
+        <field name="implied_ids" eval="[(4, ref('group_farm_user')), (4, ref('stock.group_stock_manager'))]"/>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+</odoo>
