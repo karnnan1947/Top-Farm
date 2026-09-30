@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
+from datetime import timedelta
+
+from markupsafe import Markup
+
 from odoo import api, fields, models, _
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tools import format_date
+
+POINT_OF_LAY_ACTIVITY = 'top_farm_core.mail_activity_type_point_of_lay'
 
 
 class StockLocation(models.Model):
-    _inherit = 'stock.location'
+    _name = 'stock.location'
+    _inherit = ['stock.location', 'mail.thread', 'mail.activity.mixin']
 
     farm_hierarchy_level = fields.Selection([
         ('farm', 'Farm Facility'),
@@ -24,16 +32,26 @@ class StockLocation(models.Model):
     )
 
     batch_stage = fields.Selection([
-        ('pre_laying', 'Pre-Laying (Weeks 1–18)'),
-        ('laying', 'Laying Phase (Weeks 19–72)'),
+        ('pre_laying', 'Pre-Laying'),
+        ('laying', 'Laying Phase'),
         ('spent', 'Spent Hen / Depleted'),
     ], string='Flock Lifecycle Stage',
-       compute='_compute_batch_stage', store=True, readonly=False, recursive=True, index=True,
+       compute='_compute_batch_stage', store=True, readonly=False, recursive=True, index=True, tracking=True,
        help="Current physiological stage of the flock. Set on the batch; its cages follow it.")
 
     chick_arrival_date = fields.Date(
         string='Chick Arrival Date',
         help="Date when day-old chicks or pullets arrived at the facility."
+    )
+
+    laying_notification_sent = fields.Boolean(
+        string='Laying Advance Warning Sent',
+        compute='_compute_laying_notification_sent',
+        store=True,
+        readonly=False,
+        copy=False,
+        help="Set once the point-of-lay inspection alert has been sent for this flock. "
+             "Cleared when a new chick arrival date is entered, i.e. for the next flock cycle."
     )
 
     flock_age_weeks = fields.Float(
@@ -90,6 +108,10 @@ class StockLocation(models.Model):
                 loc.batch_stage = loc.parent_batch_location_id.batch_stage
             else:
                 loc.batch_stage = False
+
+    @api.depends('chick_arrival_date')
+    def _compute_laying_notification_sent(self):
+        self.laying_notification_sent = False
 
     @api.depends('chick_arrival_date', 'parent_batch_location_id.chick_arrival_date')
     def _compute_flock_age(self):
@@ -202,17 +224,92 @@ class StockLocation(models.Model):
     # ACTIONS
     # -------------------------------------------------------------------------
     def action_start_laying_phase(self):
-        """Transition a batch from Pre-Laying to Laying; its cages follow through batch_stage."""
+        """Manager button: transition a batch from Pre-Laying to Laying (available in both transition modes)."""
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
             raise AccessError(_("Only Farm Managers can start the Laying Phase."))
+        self._start_laying_phase()
+        return True
+
+    def _start_laying_phase(self, automatic=False):
+        """Move the batch to Laying; its cages follow through batch_stage. Private so that the daily
+        check can call it, while RPC callers always go through the manager check above."""
+        self.ensure_one()
         if self.farm_hierarchy_level != 'batch':
             raise UserError(_("The Laying Phase is started on a 'Batch / Flock' location, not on '%s'.",
                               self.display_name))
         if self.batch_stage != 'pre_laying':
             raise UserError(_("Only flocks in 'Pre-Laying' stage can be transitioned to 'Laying'."))
         self.batch_stage = 'laying'
-        return True
+        self.activity_feedback([POINT_OF_LAY_ACTIVITY], feedback=_("Laying Phase started."))
+        age = f"{self.flock_age_weeks:.1f}"
+        if automatic:
+            body = _("Laying Phase started automatically: the flock reached %(age)s weeks.", age=age)
+        else:
+            body = _("Laying Phase started by %(user)s at %(age)s weeks.", user=self.env.user.name, age=age)
+        self.message_post(body=body, subtype_xmlid='mail.mt_note')
+
+    def _get_laying_due_date(self, target_age):
+        self.ensure_one()
+        return self.chick_arrival_date + timedelta(days=round(target_age * 7))
+
+    def _send_laying_advance_warning(self):
+        """Post the point-of-lay inspection alert and give each Farm Manager a To-Do on the batch."""
+        self.ensure_one()
+        company = self.company_id or self.env.company
+        target_age = company.laying_start_age_weeks
+        due_date = self._get_laying_due_date(target_age)
+        if company.laying_transition_mode == 'automatic':
+            next_step = _("The flock will switch to Laying automatically on that date. A Farm Manager "
+                          "can click Start Laying Phase earlier if egg production has already begun.")
+        else:
+            next_step = _("A Farm Manager must click Start Laying Phase once the flock is ready.")
+        today = fields.Date.context_today(self)
+        values = {'name': self.display_name, 'age': f"{self.flock_age_weeks:.1f}",
+                  'target': f"{target_age:.1f}", 'date': format_date(self.env, due_date)}
+        if due_date >= today:
+            intro = _("Flock %(name)s has reached %(age)s weeks. The Laying Phase is due at %(target)s weeks "
+                      "(%(date)s). Please inspect the flock:", **values)
+        else:
+            intro = _("Flock %(name)s has reached %(age)s weeks and is past the Laying Phase target of "
+                      "%(target)s weeks (%(date)s). Please inspect the flock:", **values)
+        note = Markup("<p>%s</p><ul><li>%s</li><li>%s</li><li>%s</li></ul><p>%s</p>") % (
+            intro,
+            _("Body weight uniformity (around 1.45 kg)"),
+            _("Comb and wattle development"),
+            _("First sample eggs / egg drop"),
+            next_step,
+        )
+        managers = self.env.ref('top_farm_core.group_farm_manager').all_user_ids.filtered(
+            lambda u: u.active and not u.share and company in u.company_ids)
+        for manager in managers:
+            self.activity_schedule(
+                POINT_OF_LAY_ACTIVITY,
+                date_deadline=max(due_date, today),
+                note=note,
+                user_id=manager.id,
+            )
+        self.message_post(body=note, subtype_xmlid='mail.mt_note')
+        self.laying_notification_sent = True
+
+    @api.model
+    def _cron_check_flock_lifecycle(self):
+        """Daily check of Pre-Laying flocks: send the advance warning once, then in automatic mode
+        start the Laying Phase when the target age is reached."""
+        batches = self.search([
+            ('farm_hierarchy_level', '=', 'batch'),
+            ('batch_stage', '=', 'pre_laying'),
+            ('chick_arrival_date', '!=', False),
+        ])
+        for batch in batches:
+            company = batch.company_id or self.env.company
+            target_age = company.laying_start_age_weeks
+            warning_age = target_age - company.laying_notification_advance_weeks
+            if company.laying_transition_mode == 'automatic' and batch.flock_age_weeks >= target_age:
+                # No warning first: an inspection To-Do that is closed in the same run is just noise
+                batch._start_laying_phase(automatic=True)
+            elif batch.flock_age_weeks >= warning_age and not batch.laying_notification_sent:
+                batch._send_laying_advance_warning()
 
     def action_view_cages(self):
         """Action for smart button to view child cages."""

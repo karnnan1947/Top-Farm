@@ -19,4 +19,12 @@
               parent="menu_top_farm_config"
               action="action_top_farm_locations"
               sequence="10"/>
+
+    <!-- Farm Settings (res.config.settings needs Settings administrator rights) -->
+    <menuitem id="menu_top_farm_settings"
+              name="Settings"
+              parent="menu_top_farm_config"
+              action="action_top_farm_config_settings"
+              groups="base.group_system"
+              sequence="0"/>
 </odoo>

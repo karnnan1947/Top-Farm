@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Own "Top Farm" tab in Settings, opened from Top Farm > Farm Configuration > Settings -->
+    <record id="res_config_settings_view_form_top_farm" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.top_farm</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority">50</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Top Farm" string="Top Farm" name="top_farm_core"
+                     groups="top_farm_core.group_farm_manager">
+                    <block title="Flock Lifecycle" name="top_farm_lifecycle_setting_container">
+                        <setting id="setting_laying_transition_mode" company_dependent="1"
+                                 string="Laying Phase Transition"
+                                 help="Start the Laying Phase by manager button only, or automatically when flocks reach the target age. The button stays available in both modes for an early start.">
+                            <field name="laying_transition_mode" class="o_light_label" widget="radio"/>
+                        </setting>
+                        <setting id="setting_laying_ages" company_dependent="1"
+                                 string="Point-of-Lay Timing"
+                                 help="Target flock age for the Laying Phase, and how many weeks earlier the Farm Managers receive the inspection alert.">
+                            <div class="content-group">
+                                <div class="row mt-2">
+                                    <label for="laying_start_age_weeks" class="col-lg-6 o_light_label"/>
+                                    <field name="laying_start_age_weeks" class="col-lg-2"/>
+                                </div>
+                                <div class="row mt-1">
+                                    <label for="laying_notification_advance_weeks" class="col-lg-6 o_light_label"/>
+                                    <field name="laying_notification_advance_weeks" class="col-lg-2"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_top_farm_config_settings" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'module': 'top_farm_core', 'bin_size': False}</field>
+    </record>
+</odoo>

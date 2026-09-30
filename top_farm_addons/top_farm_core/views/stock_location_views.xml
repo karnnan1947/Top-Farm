@@ -10,7 +10,7 @@
             <xpath expr="//sheet" position="before">
                 <header groups="top_farm_core.group_farm_user">
                     <button name="action_start_laying_phase"
-                            string="Start Laying Phase (Week 19)"
+                            string="Start Laying Phase"
                             type="object"
                             class="oe_highlight"
                             invisible="farm_hierarchy_level != 'batch' or batch_stage != 'pre_laying'"
@@ -56,8 +56,17 @@
                         <field name="chick_arrival_date"
                                readonly="farm_hierarchy_level == 'cage'"/>
                         <field name="flock_age_weeks"/>
+                        <field name="laying_notification_sent"
+                               invisible="farm_hierarchy_level != 'batch'"
+                               readonly="1"/>
                     </group>
                 </group>
+            </xpath>
+
+            <!-- Odoo 19 chatter: stage tracking, inspection alerts and To-Do activities -->
+            <xpath expr="//sheet" position="after">
+                <chatter groups="top_farm_core.group_farm_user"
+                         invisible="farm_hierarchy_level not in ('batch', 'cage')"/>
             </xpath>
         </field>
     </record>

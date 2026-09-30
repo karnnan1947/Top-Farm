@@ -7,15 +7,15 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, new_test_user
 
 
-@tagged('post_install', '-at_install')
-class TestTopFarmCore(TransactionCase):
+class TopFarmCommon(TransactionCase):
+    """Shared farm hierarchy, analytic plans, products and users (no tests of its own)."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         # Create Root Analytic Plans
-        cls.plan_batch = cls.env['account.analytic.plan'].create({'name': 'Flock Batch Plan'})
-        cls.plan_cage = cls.env['account.analytic.plan'].create({'name': 'Cage Row Plan'})
+        cls.plan_batch = cls.env['account.analytic.plan'].create({'name': 'Test Flock Batch Plan'})
+        cls.plan_cage = cls.env['account.analytic.plan'].create({'name': 'Test Cage Row Plan'})
 
         # Create Analytic Accounts
         cls.analytic_batch_c01 = cls.env['account.analytic.account'].create({
@@ -90,6 +90,10 @@ class TestTopFarmCore(TransactionCase):
         move.picked = True
         move._action_done()
         return move
+
+
+@tagged('post_install', '-at_install')
+class TestTopFarmCore(TopFarmCommon):
 
     def test_01_parent_batch_auto_resolution(self):
         """Verify cage automatically resolves its parent batch."""
@@ -281,3 +285,126 @@ class TestTopFarmCore(TransactionCase):
             self.batch_loc.with_user(self.farm_operator).action_start_laying_phase()
         with self.assertRaises(AccessError):
             self.cage_loc.with_user(self.farm_operator).unlink()
+
+
+@tagged('post_install', '-at_install')
+class TestTopFarmLifecycle(TopFarmCommon):
+    """Advance point-of-lay warning and manual / automatic Laying Phase transition."""
+
+    ACTIVITY = 'top_farm_core.mail_activity_type_point_of_lay'
+
+    def _set_age(self, days):
+        self.batch_loc.chick_arrival_date = self.today - timedelta(days=days)
+
+    def _configure(self, mode, target=19.0, advance=1.0):
+        self.env.company.write({
+            'laying_transition_mode': mode,
+            'laying_start_age_weeks': target,
+            'laying_notification_advance_weeks': advance,
+        })
+
+    def _inspection_activities(self):
+        return self.batch_loc.activity_ids.filtered(
+            lambda a: a.activity_type_id == self.env.ref(self.ACTIVITY))
+
+    def _run_cron(self):
+        self.env['stock.location']._cron_check_flock_lifecycle()
+
+    def test_20_stage_labels_have_no_week_ranges(self):
+        labels = [label for __, label in self.env['stock.location']._fields['batch_stage'].selection]
+        self.assertEqual(labels, ['Pre-Laying', 'Laying Phase', 'Spent Hen / Depleted'])
+
+    def test_21_manual_mode_warns_once_and_waits(self):
+        """Week 18.0 in manual mode: one inspection To-Do per manager and a chatter note, no transition."""
+        self._configure('manual')
+        self._set_age(126)
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'pre_laying')
+        self.assertTrue(self.batch_loc.laying_notification_sent)
+        activities = self._inspection_activities()
+        self.assertIn(self.farm_manager, activities.user_id)
+        self.assertNotIn(self.farm_operator, activities.user_id)
+        self.assertEqual(activities.mapped('date_deadline'), [self.today + timedelta(days=7)] * len(activities))
+        self.assertTrue(any('has reached 18.0 weeks' in (m.body or '') for m in self.batch_loc.message_ids))
+
+        self._run_cron()
+        self.assertEqual(len(self._inspection_activities()), len(activities), "The warning is sent only once")
+
+        # Manual mode never transitions on its own, even past the target age
+        self._set_age(150)
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'pre_laying')
+
+    def test_21b_overdue_flock_warning_says_past_target(self):
+        """A flock first checked after its target date is told it is past the target, not 'due'."""
+        self._configure('manual')
+        self._set_age(140)  # 20.0 weeks, target was a week ago
+        self._run_cron()
+        bodies = ' '.join(m.body or '' for m in self.batch_loc.message_ids)
+        self.assertIn('past the Laying Phase target', bodies)
+        self.assertEqual(self._inspection_activities().mapped('date_deadline'),
+                         [self.today] * len(self._inspection_activities()), "Overdue To-Dos are due today")
+
+    def test_22_manager_button_closes_the_inspection(self):
+        self._configure('manual')
+        self._set_age(126)
+        self._run_cron()
+        self.batch_loc.with_user(self.farm_manager).action_start_laying_phase()
+        self.assertEqual(self.batch_loc.batch_stage, 'laying')
+        self.assertEqual(self.cage_loc.batch_stage, 'laying')
+        self.assertFalse(self._inspection_activities(), "Pending inspection To-Dos are marked done")
+        self.assertTrue(any('started by' in (m.body or '') for m in self.batch_loc.message_ids))
+
+    def test_23_automatic_mode_transitions_at_target_age(self):
+        self._configure('automatic')
+        self._set_age(133)  # 19.0 weeks
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'laying')
+        self.assertEqual(self.cage_loc.batch_stage, 'laying')
+        self.assertFalse(self._inspection_activities(), "No To-Do is left open by an automatic transition")
+        self.assertTrue(any('started automatically' in (m.body or '') for m in self.batch_loc.message_ids))
+
+    def test_24_automatic_mode_warns_before_target(self):
+        self._configure('automatic')
+        self._set_age(128)  # 18.3 weeks: inside the warning window, before the target
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'pre_laying')
+        self.assertTrue(self._inspection_activities())
+
+    def test_25_early_button_in_automatic_mode(self):
+        """A manager can start laying at week 18.3 in automatic mode; the next cron leaves it alone."""
+        self._configure('automatic')
+        self._set_age(128)
+        self.batch_loc.with_user(self.farm_manager).action_start_laying_phase()
+        self.assertEqual(self.batch_loc.batch_stage, 'laying')
+        self._set_age(140)
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'laying')
+
+    def test_26_young_flock_is_left_alone(self):
+        self._configure('automatic')
+        self._set_age(70)
+        self._run_cron()
+        self.assertEqual(self.batch_loc.batch_stage, 'pre_laying')
+        self.assertFalse(self.batch_loc.laying_notification_sent)
+        self.assertFalse(self._inspection_activities())
+
+    def test_27_context_cannot_bypass_the_manager_check(self):
+        """The plan's auto_transition context flag must not let an operator start the Laying Phase via RPC."""
+        with self.assertRaises(AccessError):
+            self.batch_loc.with_user(self.farm_operator).with_context(
+                auto_transition=True).action_start_laying_phase()
+
+    def test_28_new_arrival_date_rearms_the_warning(self):
+        self._configure('manual')
+        self._set_age(126)
+        self._run_cron()
+        self.assertTrue(self.batch_loc.laying_notification_sent)
+        self._set_age(0)  # a new flock is placed in the house
+        self.assertFalse(self.batch_loc.laying_notification_sent)
+
+    def test_29_invalid_settings_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._configure('manual', target=19.0, advance=19.0)
+        with self.assertRaises(ValidationError):
+            self._configure('manual', target=0.0)
