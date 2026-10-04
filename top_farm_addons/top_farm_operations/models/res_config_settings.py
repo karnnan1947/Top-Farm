@@ -1,0 +1,26 @@
+# -*- coding: utf-8 -*-
+from odoo import fields, models
+
+EGG_PRODUCT_DOMAIN = "[('type', '=', 'consu'), ('company_id', 'in', [company_id, False])]"
+
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    farm_feed_consumption_location_id = fields.Many2one(
+        related='company_id.farm_feed_consumption_location_id', readonly=False,
+        domain="[('usage', '=', 'inventory'), ('company_id', 'in', [company_id, False])]")
+    farm_medication_consumption_location_id = fields.Many2one(
+        related='company_id.farm_medication_consumption_location_id', readonly=False,
+        domain="[('usage', '=', 'inventory'), ('company_id', 'in', [company_id, False])]")
+    farm_egg_location_id = fields.Many2one(
+        related='company_id.farm_egg_location_id', readonly=False,
+        domain="[('usage', '=', 'internal'), ('company_id', 'in', [company_id, False])]")
+    farm_egg_medium_product_id = fields.Many2one(
+        related='company_id.farm_egg_medium_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
+    farm_egg_large_product_id = fields.Many2one(
+        related='company_id.farm_egg_large_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
+    farm_egg_jumbo_product_id = fields.Many2one(
+        related='company_id.farm_egg_jumbo_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
+    farm_egg_damage_product_id = fields.Many2one(
+        related='company_id.farm_egg_damage_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)

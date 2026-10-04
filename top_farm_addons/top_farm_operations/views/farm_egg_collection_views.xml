@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_egg_collection_form" model="ir.ui.view">
+        <field name="name">farm.egg.collection.form</field>
+        <field name="model">farm.egg.collection</field>
+        <field name="arch" type="xml">
+            <form string="Daily Egg Collection">
+                <header>
+                    <button name="action_generate_split_manufacturing_orders" string="Produce Eggs" type="object"
+                            class="oe_highlight" invisible="state != 'draft'"
+                            confirm="Create and complete one manufacturing order per egg grade?"/>
+                    <button name="action_cancel" string="Cancel" type="object" invisible="state != 'draft'"/>
+                    <button name="action_draft" string="Reset to Draft" type="object" invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_mos" type="object" class="oe_stat_button" icon="fa-cogs"
+                                invisible="not mo_count">
+                            <field name="mo_count" widget="statinfo" string="Manufacturing"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="batch_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="cage_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="destination_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Flock Performance" name="kpis">
+                            <field name="confirmed_live_bird_count"/>
+                            <field name="hen_day_rate"/>
+                            <field name="feed_consumed_qty"/>
+                            <field name="fcr"/>
+                        </group>
+                    </group>
+                    <group string="Graded Eggs" name="grades">
+                        <group>
+                            <field name="qty_large" readonly="state != 'draft'"/>
+                            <field name="qty_medium" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="qty_jumbo" readonly="state != 'draft'"/>
+                            <field name="qty_damage" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="total_egg_qty"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Staged Feed" name="feed">
+                            <field name="feed_log_ids" readonly="state != 'draft'" options="{'no_create': True}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                    <field name="total_feed_qty" sum="Total Feed"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Egg Products" name="products">
+                            <group>
+                                <field name="product_large_id" readonly="state != 'draft'"/>
+                                <field name="product_medium_id" readonly="state != 'draft'"/>
+                                <field name="product_jumbo_id" readonly="state != 'draft'"/>
+                                <field name="product_damage_id" readonly="state != 'draft'"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_farm_egg_collection_list" model="ir.ui.view">
+        <field name="name">farm.egg.collection.list</field>
+        <field name="model">farm.egg.collection</field>
+        <field name="arch" type="xml">
+            <list string="Daily Egg Collections">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="qty_large" sum="Large" optional="show"/>
+                <field name="qty_medium" sum="Medium" optional="show"/>
+                <field name="qty_jumbo" sum="Jumbo" optional="show"/>
+                <field name="qty_damage" sum="Damaged" optional="show"/>
+                <field name="total_egg_qty" sum="Total Eggs"/>
+                <field name="hen_day_rate" avg="Average Hen-Day %"/>
+                <field name="fcr" avg="Average FCR"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-muted="state == 'cancelled'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_farm_egg_collection_search" model="ir.ui.view">
+        <field name="name">farm.egg.collection.search</field>
+        <field name="model">farm.egg.collection</field>
+        <field name="arch" type="xml">
+            <search string="Daily Egg Collections">
+                <field name="name"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Produced" name="filter_done" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter string="Collection Date" name="filter_date" date="date"/>
+                <group>
+                    <filter string="Batch" name="group_batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter string="Cage" name="group_cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter string="Collection Date" name="group_date" context="{'group_by': 'date:day'}"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_farm_egg_collection" model="ir.actions.act_window">
+        <field name="name">Daily Egg Collections</field>
+        <field name="res_model">farm.egg.collection</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_farm_egg_collection_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Record today's egg collection</p>
+            <p>Enter the graded eggs per cage and click Produce Eggs: one manufacturing order per grade
+               consumes the day's staged feed in proportion to the eggs.</p>
+        </field>
+    </record>
+</odoo>

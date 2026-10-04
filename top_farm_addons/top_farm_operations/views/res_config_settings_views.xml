@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_top_farm_operations" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.top_farm.operations</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="top_farm_core.res_config_settings_view_form_top_farm"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='top_farm_lifecycle_setting_container']" position="after">
+                <block title="Daily Operations" name="top_farm_operations_setting_container">
+                    <setting id="setting_farm_consumption_locations" company_dependent="1"
+                             string="Consumption Locations"
+                             help="Where expensed feed and medication go. Give each location a valuation account (e.g. Feed Expense) to post the cost to the ledger.">
+                        <div class="content-group">
+                            <div class="row mt-2">
+                                <label for="farm_feed_consumption_location_id" string="Feed" class="col-lg-4 o_light_label"/>
+                                <field name="farm_feed_consumption_location_id" class="col-lg-6" options="{'no_create': True}"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_medication_consumption_location_id" string="Medication" class="col-lg-4 o_light_label"/>
+                                <field name="farm_medication_consumption_location_id" class="col-lg-6" options="{'no_create': True}"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="setting_farm_egg_products" company_dependent="1"
+                             string="Graded Egg Products"
+                             help="Default products and store for new egg collections. A batch can have its own Egg Store Location.">
+                        <div class="content-group">
+                            <div class="row mt-2">
+                                <label for="farm_egg_location_id" string="Egg Store" class="col-lg-4 o_light_label"/>
+                                <field name="farm_egg_location_id" class="col-lg-6" options="{'no_create': True}"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_egg_large_product_id" string="Large" class="col-lg-4 o_light_label"/>
+                                <field name="farm_egg_large_product_id" class="col-lg-6"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_egg_medium_product_id" string="Medium" class="col-lg-4 o_light_label"/>
+                                <field name="farm_egg_medium_product_id" class="col-lg-6"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_egg_jumbo_product_id" string="Jumbo" class="col-lg-4 o_light_label"/>
+                                <field name="farm_egg_jumbo_product_id" class="col-lg-6"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_egg_damage_product_id" string="Damaged" class="col-lg-4 o_light_label"/>
+                                <field name="farm_egg_damage_product_id" class="col-lg-6"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

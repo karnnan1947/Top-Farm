@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_top_farm_operations"
+              name="Farm Operations"
+              parent="top_farm_core.menu_top_farm_root"
+              sequence="10"/>
+
+    <menuitem id="menu_farm_feed_log"
+              name="Daily Feed &amp; Medication"
+              parent="menu_top_farm_operations"
+              action="action_farm_feed_log"
+              sequence="10"/>
+
+    <menuitem id="menu_farm_egg_collection"
+              name="Daily Egg Collections"
+              parent="menu_top_farm_operations"
+              action="action_farm_egg_collection"
+              sequence="20"/>
+</odoo>

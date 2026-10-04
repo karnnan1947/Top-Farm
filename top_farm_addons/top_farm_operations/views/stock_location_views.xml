@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_location_form_top_farm_operations" model="ir.ui.view">
+        <field name="name">stock.location.form.top_farm.operations</field>
+        <field name="model">stock.location</field>
+        <field name="inherit_id" ref="top_farm_core.view_location_form_top_farm"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='flock_age_weeks']" position="after">
+                <field name="farm_egg_location_id" invisible="farm_hierarchy_level != 'batch'"
+                       options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

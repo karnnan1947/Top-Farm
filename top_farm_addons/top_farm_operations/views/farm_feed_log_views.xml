@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_feed_log_form" model="ir.ui.view">
+        <field name="name">farm.feed.log.form</field>
+        <field name="model">farm.feed.log</field>
+        <field name="arch" type="xml">
+            <form string="Daily Feed &amp; Medication">
+                <header>
+                    <button name="action_confirm" string="Confirm" type="object" class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_cancel" string="Cancel" type="object"
+                            invisible="state not in ('draft', 'confirmed') or picking_count"/>
+                    <button name="action_draft" string="Reset to Draft" type="object"
+                            invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,reconciled"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_pickings" type="object" class="oe_stat_button" icon="fa-truck"
+                                invisible="not picking_count">
+                            <field name="picking_count" widget="statinfo" string="Transfers"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="batch_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="cage_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="feeding_phase"/>
+                            <field name="total_feed_qty"/>
+                            <field name="total_med_qty"/>
+                            <field name="egg_collection_id" invisible="not egg_collection_id"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Feed &amp; Medication" name="lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="product_id" options="{'no_create': True}"/>
+                                    <field name="source_location_id" options="{'no_create': True}"/>
+                                    <field name="quantity"/>
+                                    <field name="uom_id"/>
+                                    <field name="is_medication"/>
+                                    <field name="company_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_farm_feed_log_list" model="ir.ui.view">
+        <field name="name">farm.feed.log.list</field>
+        <field name="model">farm.feed.log</field>
+        <field name="arch" type="xml">
+            <list string="Daily Feed &amp; Medication">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="feeding_phase" widget="badge"
+                       decoration-info="feeding_phase == 'pre_laying'" decoration-success="feeding_phase == 'laying'"/>
+                <field name="total_feed_qty" sum="Total Feed"/>
+                <field name="total_med_qty" sum="Total Medication" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'confirmed'" decoration-success="state == 'reconciled'"
+                       decoration-muted="state == 'cancelled'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_farm_feed_log_search" model="ir.ui.view">
+        <field name="name">farm.feed.log.search</field>
+        <field name="model">farm.feed.log</field>
+        <field name="arch" type="xml">
+            <search string="Daily Feed &amp; Medication">
+                <field name="name"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="line_ids" string="Product" filter_domain="[('line_ids.product_id', 'ilike', self)]"/>
+                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Staged for Egg Harvest" name="filter_staged" domain="[('state', '=', 'confirmed')]"/>
+                <filter string="Reconciled" name="filter_reconciled" domain="[('state', '=', 'reconciled')]"/>
+                <separator/>
+                <filter string="Pre-Laying" name="filter_pre_laying" domain="[('feeding_phase', '=', 'pre_laying')]"/>
+                <filter string="Laying Phase" name="filter_laying" domain="[('feeding_phase', '=', 'laying')]"/>
+                <separator/>
+                <filter string="Feeding Date" name="filter_date" date="date"/>
+                <group>
+                    <filter string="Batch" name="group_batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter string="Cage" name="group_cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter string="Feeding Date" name="group_date" context="{'group_by': 'date:day'}"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_farm_feed_log" model="ir.actions.act_window">
+        <field name="name">Daily Feed &amp; Medication</field>
+        <field name="res_model">farm.feed.log</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_farm_feed_log_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Log today's feeding</p>
+            <p>Record the feed and medication given to each cage. Pre-laying feed and all medication are
+               expensed at once; laying feed is staged until the day's egg collection consumes it.</p>
+        </field>
+    </record>
+</odoo>
