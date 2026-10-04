@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_mortality_action_wizard_form" model="ir.ui.view">
+        <field name="name">farm.mortality.action.wizard.form</field>
+        <field name="model">farm.mortality.action.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reason">
+                <group>
+                    <field name="log_id" invisible="1"/>
+                    <field name="action" invisible="1"/>
+                    <field name="reason" placeholder="Explain why..."/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

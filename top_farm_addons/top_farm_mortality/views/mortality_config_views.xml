@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_mortality_config_form" model="ir.ui.view">
+        <field name="name">farm.mortality.config.form</field>
+        <field name="model">farm.mortality.config</field>
+        <field name="arch" type="xml">
+            <form string="Mortality Controls" create="false" delete="false">
+                <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
+                        <field name="accounting_warning" readonly="1" nolabel="1"/>
+                    </div>
+                    <group string="Poultry Loss &amp; Mortality Controls">
+                        <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                        <label for="daily_mortality_threshold_pct"/>
+                        <div class="o_row">
+                            <field name="daily_mortality_threshold_pct" class="oe_inline"/>
+                            <span>% per cage / day (cumulative, on the opening population)</span>
+                        </div>
+                        <label for="min_dead_count"/>
+                        <div class="o_row">
+                            <field name="min_dead_count" class="oe_inline"/>
+                            <span>dead birds (0 = no floor)</span>
+                        </div>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_farm_mortality_config" model="ir.actions.server">
+        <field name="name">Mortality Controls</field>
+        <field name="model_id" ref="model_farm_mortality_config"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_config()</field>
+    </record>
+</odoo>
