@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_farm_mortality_log_user,farm.mortality.log.user,model_farm_mortality_log,group_mortality_user,1,1,1,0
+access_farm_mortality_log_manager,farm.mortality.log.manager,model_farm_mortality_log,group_mortality_manager,1,1,1,1
+access_farm_mortality_config_user,farm.mortality.config.user,model_farm_mortality_config,group_mortality_user,1,0,0,0
+access_farm_mortality_config_manager,farm.mortality.config.manager,model_farm_mortality_config,group_mortality_manager,1,1,1,0
+access_farm_mortality_action_wizard_manager,farm.mortality.action.wizard.manager,model_farm_mortality_action_wizard,group_mortality_manager,1,1,1,1

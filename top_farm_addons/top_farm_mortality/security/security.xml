@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_groups_privilege_mortality" model="res.groups.privilege">
+        <field name="name">Poultry Mortality</field>
+        <field name="category_id" ref="base.module_category_supply_chain"/>
+    </record>
+
+    <record id="group_mortality_user" model="res.groups">
+        <field name="name">Operator</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_mortality"/>
+        <field name="implied_ids" eval="[(4, ref('stock.group_stock_user'))]"/>
+    </record>
+    <record id="group_mortality_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_mortality"/>
+        <field name="implied_ids" eval="[(4, ref('group_mortality_user'))]"/>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <record id="rule_mortality_log_company" model="ir.rule">
+        <field name="name">Mortality log: multi-company</field>
+        <field name="model_id" ref="model_farm_mortality_log"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_mortality_config_company" model="ir.rule">
+        <field name="name">Mortality config: multi-company</field>
+        <field name="model_id" ref="model_farm_mortality_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

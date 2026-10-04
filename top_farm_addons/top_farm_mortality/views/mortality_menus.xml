@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_mortality_root" name="Mortality" sequence="30"
+              web_icon="top_farm_mortality,static/description/icon.png"
+              groups="group_mortality_user"/>
+    <menuitem id="menu_mortality_records" name="Mortality Records" parent="menu_mortality_root"
+              action="action_farm_mortality_log" sequence="10"/>
+    <menuitem id="menu_mortality_analysis" name="Analysis" parent="menu_mortality_root"
+              action="action_farm_mortality_analysis" sequence="20"/>
+    <menuitem id="menu_mortality_config" name="Configuration" parent="menu_mortality_root"
+              sequence="90" groups="group_mortality_manager"/>
+    <menuitem id="menu_mortality_controls" name="Mortality Controls" parent="menu_mortality_config"
+              action="action_farm_mortality_config" sequence="10"/>
+</odoo>

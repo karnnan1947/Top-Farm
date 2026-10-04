@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" ry="96" fill="#2E7D32"/>
+  <g transform="translate(0,-26)">
+  <!-- soil patch (same as the core icon) -->
+  <ellipse cx="256" cy="420" rx="172" ry="42" fill="#79522D"/>
+  <path d="M 84 420 C 84 396 160 378 256 378 C 352 378 428 396 428 420 C 400 410 330 404 256 404 C 182 404 112 410 84 420 Z" fill="#8F6238"/>
+  <!-- stiff legs pointing up -->
+  <g stroke="#F9A825" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 296 276 L 308 206 M 308 206 L 288 192 M 308 206 L 314 180 M 308 206 L 332 192"/>
+    <path d="M 350 284 L 372 218 M 372 218 L 350 208 M 372 218 L 380 192 M 372 218 L 396 206"/>
+  </g>
+  <!-- tail feathers lying on the ground -->
+  <path d="M 372 322 C 410 300 446 300 476 318 C 454 352 412 364 376 358 Z" fill="#FFF6E1"/>
+  <path d="M 368 344 C 404 340 436 350 458 370 C 432 388 396 388 368 376 Z" fill="#EAD9B3"/>
+  <!-- body on its back -->
+  <ellipse cx="268" cy="340" rx="124" ry="82" fill="#FFFCE8"/>
+  <!-- neck and head resting on the ground -->
+  <ellipse cx="166" cy="346" rx="48" ry="38" fill="#FFFCE8"/>
+  <circle cx="128" cy="352" r="48" fill="#FFFCE8"/>
+  <!-- wing hanging limp -->
+  <path d="M 228 332 C 248 300 322 300 352 338 C 338 376 282 384 246 362 C 236 354 230 344 228 332 Z" fill="#EAD9B3"/>
+  <path d="M 256 340 C 280 328 312 330 332 342 M 254 358 C 278 348 304 350 322 360" fill="none" stroke="#C9B382" stroke-width="7" stroke-linecap="round"/>
+  <!-- comb -->
+  <path d="M 96 324 C 82 300 106 282 120 300 C 124 274 156 278 152 306 C 166 296 180 314 166 330 C 140 338 112 336 96 324 Z" fill="#D32F2F"/>
+  <!-- tongue -->
+  <path d="M 78 378 C 74 398 92 404 98 388 C 100 382 96 378 92 378 Z" fill="#E57373"/>
+  <!-- beak -->
+  <path d="M 86 348 C 68 354 54 364 50 372 C 62 380 80 380 92 376 C 96 366 94 356 86 348 Z" fill="#F9A825"/>
+  <!-- X eye -->
+  <path d="M 106 334 L 126 354 M 126 334 L 106 354" stroke="#3E2723" stroke-width="7.5" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>
