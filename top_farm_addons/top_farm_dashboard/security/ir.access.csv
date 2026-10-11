@@ -1,0 +1,18 @@
+id,name,model_id,group_id/id,operation,domain
+access_farm_dashboard_config_user,farm.dashboard.config.user,farm.dashboard.config,top_farm_core.group_farm_user,r,
+access_farm_dashboard_config_manager,farm.dashboard.config.manager,farm.dashboard.config,top_farm_core.group_farm_manager,cru,
+access_farm_mortality_bi_user,farm.mortality.bi.user,farm.mortality.bi,top_farm_core.group_farm_user,r,
+access_farm_profitability_manager,farm.profitability.report.manager,farm.profitability.report,top_farm_core.group_farm_manager,r,
+access_farm_profitability_account,farm.profitability.report.account,farm.profitability.report,account.group_account_invoice,r,
+access_farm_revenue_allocation_manager,farm.revenue.allocation.manager,farm.revenue.allocation,top_farm_core.group_farm_manager,r,
+access_farm_revenue_allocation_account,farm.revenue.allocation.account,farm.revenue.allocation,account.group_account_invoice,r,
+rule_farm_profitability_company,Farm profitability: multi-company,farm.profitability.report,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_revenue_allocation_company,Farm revenue allocation: multi-company,farm.revenue.allocation,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_mortality_bi_company,Farm mortality BI: multi-company,farm.mortality.bi,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_dashboard_config_company,Farm dashboard settings: multi-company,farm.dashboard.config,,crud,"[('company_id', 'in', company_ids)]"
+access_farm_egg_report_user,farm.egg.report.user,farm.egg.report,top_farm_core.group_farm_user,r,
+access_farm_egg_report_account,farm.egg.report.account,farm.egg.report,account.group_account_invoice,r,
+access_farm_feed_report_manager,farm.feed.report.manager,farm.feed.report,top_farm_core.group_farm_manager,r,
+access_farm_feed_report_account,farm.feed.report.account,farm.feed.report,account.group_account_invoice,r,
+rule_farm_egg_report_company,Farm egg report: multi-company,farm.egg.report,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_feed_report_company,Farm feed report: multi-company,farm.feed.report,,crud,"[('company_id', 'in', company_ids)]"

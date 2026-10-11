@@ -6,7 +6,7 @@
         <field name="sequence">50</field>
     </record>
 
-    <!-- Odoo 19: groups hang off a privilege (res.groups.category_id no longer exists) -->
+    <!-- Odoo 20: groups hang off a privilege (res.groups.category_id no longer exists) -->
     <record id="res_groups_privilege_top_farm" model="res.groups.privilege">
         <field name="name">Poultry Farm</field>
         <field name="category_id" ref="module_category_top_farm"/>

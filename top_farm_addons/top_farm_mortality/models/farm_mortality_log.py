@@ -7,7 +7,7 @@ TODO = 'mail.mail_activity_data_todo'
 # Fields that may only be changed by the module's own methods (context flag below).
 PROTECTED_FIELDS = {
     'state', 'opening_population', 'cumulative_dead', 'mortality_pct', 'threshold_pct_used',
-    'requires_approval', 'approved_by_id', 'approved_date', 'scrap_id', 'reversal_move_id',
+    'requires_approval', 'approved_by_id', 'approved_date', 'scrap_move_id', 'reversal_move_id',
     'rejection_reason', 'reversal_reason',
 }
 SNAPSHOT_FIELDS = {'opening_population', 'cumulative_dead', 'mortality_pct',
@@ -77,7 +77,7 @@ class FarmMortalityLog(models.Model):
     reversal_reason = fields.Text(readonly=True, copy=False)
     approved_by_id = fields.Many2one('res.users', string='Approved By', readonly=True, copy=False)
     approved_date = fields.Datetime(readonly=True, copy=False)
-    scrap_id = fields.Many2one('stock.scrap', string='Stock Scrap', readonly=True, copy=False)
+    scrap_move_id = fields.Many2one('stock.move', string='Stock Scrap', readonly=True, copy=False)
     reversal_move_id = fields.Many2one('stock.move', string='Reversal Move', readonly=True, copy=False)
 
     # ------------------------------------------------------------------
@@ -313,15 +313,16 @@ class FarmMortalityLog(models.Model):
         if not (reason or '').strip():
             raise UserError(_("A reversal reason is required."))
         for rec in self:
-            if rec.state != 'done' or not rec.scrap_id:
+            if rec.state != 'done' or not rec.scrap_move_id:
                 raise UserError(_("Only scrapped logs can be reversed."))
             rec._lock_cage()
-            scrap = rec.scrap_id
+            scrap = rec.scrap_move_id
+            qty = scrap.quantity
             move = self.env['stock.move'].create({
                 'product_id': rec.bird_product_id.id,
-                'product_uom': scrap.product_uom_id.id,
-                'product_uom_qty': scrap.scrap_qty,
-                'location_id': scrap.scrap_location_id.id,
+                'uom_id': scrap.uom_id.id,
+                'product_uom_qty': qty,
+                'location_id': scrap.location_dest_id.id,
                 'location_dest_id': rec.cage_location_id.id,
                 'origin': _("%s reversal", rec.name),
                 # a move with no picking/scrap/inventory has an empty computed reference and the
@@ -332,9 +333,9 @@ class FarmMortalityLog(models.Model):
                 'picked': True,
                 'move_line_ids': [(0, 0, {
                     'product_id': rec.bird_product_id.id,
-                    'product_uom_id': scrap.product_uom_id.id,
-                    'quantity': scrap.scrap_qty,
-                    'location_id': scrap.scrap_location_id.id,
+                    'uom_id': scrap.uom_id.id,
+                    'quantity': qty,
+                    'location_id': scrap.location_dest_id.id,
                     'location_dest_id': rec.cage_location_id.id,
                     'lot_id': rec.lot_id.id,
                 })],
@@ -350,21 +351,26 @@ class FarmMortalityLog(models.Model):
         location = self._get_scrap_location()
         if not location:
             raise UserError(_("No scrap location (usage 'Inventory adjustment') is configured."))
-        scrap = self.env['stock.scrap'].create({
+        # Odoo 20 has no stock.scrap document: a scrap is a stock move flagged is_scrap
+        move = self.env['stock.move'].create({
             'product_id': self.bird_product_id.id,
-            'scrap_qty': self.dead_bird_count,
-            'product_uom_id': self.bird_product_id.uom_id.id,
+            'uom_id': self.bird_product_id.uom_id.id,
+            'product_uom_qty': self.dead_bird_count,
+            'quantity': self.dead_bird_count,
             'location_id': self.cage_location_id.id,
-            'scrap_location_id': location.id,
-            'lot_id': self.lot_id.id,
+            'location_dest_id': location.id,
+            'lot_ids': [(6, 0, self.lot_id.ids)],
+            'is_scrap': True,
             'origin': self.name,
             'company_id': self.company_id.id,
             'farm_mortality_log_id': self.id,
         })
-        scrap.action_validate()
-        if scrap.state != 'done':
+        if not move.check_available_qty():
             raise UserError(_("The stock scrap could not be completed (insufficient stock)."))
-        self.scrap_id = scrap
+        move._action_scrap()
+        if move.state != 'done':
+            raise UserError(_("The stock scrap could not be completed (insufficient stock)."))
+        self.scrap_move_id = move
 
     # Buttons opening the reason wizard
     def action_open_reject(self):
@@ -387,5 +393,6 @@ class FarmMortalityLog(models.Model):
 
     def action_view_scrap(self):
         self.ensure_one()
-        return {'type': 'ir.actions.act_window', 'res_model': 'stock.scrap',
-                'res_id': self.scrap_id.id, 'view_mode': 'form'}
+        return {'type': 'ir.actions.act_window', 'res_model': 'stock.move',
+                'res_id': self.scrap_move_id.id, 'view_mode': 'form',
+                'views': [(self.env.ref('stock.view_scrap_move_form').id, 'form')]}

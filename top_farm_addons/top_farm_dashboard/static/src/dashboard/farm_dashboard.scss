@@ -1,0 +1,19 @@
+.o_farm_dashboard {
+    .o_farm_card, .o_farm_panel {
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 8px;
+        padding: 16px;
+        height: 100%;
+    }
+    .o_farm_card {
+        cursor: pointer;
+        border-left-width: 6px;
+        &:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+        &.o_farm_ok { border-left-color: #2e9d57; }
+        &.o_farm_bad { border-left-color: #d9534f; }
+    }
+    .o_farm_card_title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+    .o_farm_card_value { font-size: 2rem; font-weight: 600; line-height: 1.2; small { font-size: 0.9rem; opacity: 0.7; } }
+    .o_farm_card_sub { font-size: 0.8rem; opacity: 0.75; }
+    .o_farm_chart { position: relative; height: 280px; margin-top: 8px; }
+}

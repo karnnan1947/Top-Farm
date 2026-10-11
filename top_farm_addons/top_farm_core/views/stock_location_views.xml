@@ -15,6 +15,23 @@
                             class="oe_highlight"
                             invisible="farm_hierarchy_level != 'batch' or batch_stage != 'pre_laying'"
                             groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_allocate_birds"
+                            string="Allocate Birds to Cages"
+                            type="object"
+                            invisible="farm_hierarchy_level != 'batch'"
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_mark_spent"
+                            string="Mark as Spent"
+                            type="object"
+                            invisible="farm_hierarchy_level != 'batch' or batch_stage != 'laying'"
+                            confirm="Mark this flock as Spent Hen / Depleted? Its cages follow."
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_back_to_pre_laying"
+                            string="Back to Pre-Laying"
+                            type="object"
+                            invisible="farm_hierarchy_level != 'batch' or batch_stage != 'laying'"
+                            confirm="Move this flock back to Pre-Laying? New feed logs will be expensed at once instead of staged. Its cages follow."
+                            groups="top_farm_core.group_farm_manager"/>
                     <field name="batch_stage" widget="statusbar"
                            statusbar_visible="pre_laying,laying,spent"
                            invisible="farm_hierarchy_level not in ('batch', 'cage')"/>
@@ -56,6 +73,8 @@
                         <field name="chick_arrival_date"
                                readonly="farm_hierarchy_level == 'cage'"/>
                         <field name="flock_age_weeks"/>
+                        <field name="unallocated_bird_count"
+                               invisible="farm_hierarchy_level != 'batch'"/>
                         <field name="laying_notification_sent"
                                invisible="farm_hierarchy_level != 'batch'"
                                readonly="1"/>
@@ -63,7 +82,7 @@
                 </group>
             </xpath>
 
-            <!-- Odoo 19 chatter: stage tracking, inspection alerts and To-Do activities -->
+            <!-- Odoo 20 chatter: stage tracking, inspection alerts and To-Do activities -->
             <xpath expr="//sheet" position="after">
                 <chatter groups="top_farm_core.group_farm_user"
                          invisible="farm_hierarchy_level not in ('batch', 'cage')"/>
@@ -71,7 +90,7 @@
         </field>
     </record>
 
-    <!-- Dedicated List View for Farm Locations (Odoo 19 <list>) -->
+    <!-- Dedicated List View for Farm Locations (Odoo 20 <list>) -->
     <record id="view_location_tree_top_farm" model="ir.ui.view">
         <field name="name">stock.location.list.top_farm</field>
         <field name="model">stock.location</field>
@@ -83,6 +102,7 @@
                        decoration-info="farm_hierarchy_level == 'farm'"
                        decoration-warning="farm_hierarchy_level == 'batch'"
                        decoration-success="farm_hierarchy_level == 'cage'"/>
+                <field name="parent_farm_location_id" optional="show"/>
                 <field name="parent_batch_location_id"/>
                 <field name="batch_stage" widget="badge"
                        decoration-muted="batch_stage == 'spent'"
@@ -104,6 +124,7 @@
         <field name="inherit_id" ref="stock.view_location_search"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='warehouse_id']" position="after">
+                <field name="parent_farm_location_id"/>
                 <field name="parent_batch_location_id"/>
             </xpath>
             <xpath expr="//filter[@name='inactive']" position="after">
@@ -116,9 +137,10 @@
                 <filter string="Active Laying Flocks" name="filter_laying" domain="[('batch_stage', '=', 'laying')]"/>
                 <filter string="Spent Flocks" name="filter_spent" domain="[('batch_stage', '=', 'spent')]"/>
             </xpath>
-            <!-- Odoo 19 search <group> takes no expand/string attributes: reuse core's Group By block -->
+            <!-- Odoo 20 search <group> takes no expand/string attributes: reuse core's Group By block -->
             <xpath expr="//search/group" position="inside">
                 <filter string="Hierarchy Level" name="group_level" context="{'group_by': 'farm_hierarchy_level'}"/>
+                <filter string="Farm" name="group_farm" context="{'group_by': 'parent_farm_location_id'}"/>
                 <filter string="Parent Batch" name="group_batch" context="{'group_by': 'parent_batch_location_id'}"/>
                 <filter string="Flock Stage" name="group_stage" context="{'group_by': 'batch_stage'}"/>
             </xpath>
@@ -132,7 +154,7 @@
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_location_tree_top_farm"/>
         <field name="domain">[('farm_hierarchy_level', 'in', ('farm', 'batch', 'cage'))]</field>
-        <field name="context">{'search_default_group_batch': 1}</field>
+        <field name="context">{'search_default_group_farm': 1, 'search_default_group_batch': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first farm facility

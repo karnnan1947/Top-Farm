@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_mortality_bi_pivot" model="ir.ui.view">
+        <field name="name">farm.mortality.bi.pivot</field>
+        <field name="model">farm.mortality.bi</field>
+        <field name="arch" type="xml">
+            <pivot string="Mortality Analysis">
+                <field name="batch_location_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="cause_of_death" type="col"/>
+                <field name="dead_bird_count" type="measure"/>
+                <field name="mortality_pct" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_mortality_bi_graph" model="ir.ui.view">
+        <field name="name">farm.mortality.bi.graph</field>
+        <field name="model">farm.mortality.bi</field>
+        <field name="arch" type="xml">
+            <graph string="Dead Birds by Cause" type="bar">
+                <field name="cause_of_death"/>
+                <field name="dead_bird_count" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_mortality_bi_search" model="ir.ui.view">
+        <field name="name">farm.mortality.bi.search</field>
+        <field name="model">farm.mortality.bi</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <group>
+                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_cause" string="Cause" context="{'group_by': 'cause_of_death'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_mortality_bi" model="ir.actions.act_window">
+        <field name="name">Mortality BI Analysis</field>
+        <field name="res_model">farm.mortality.bi</field>
+        <field name="view_mode">pivot,graph</field>
+    </record>
+</odoo>

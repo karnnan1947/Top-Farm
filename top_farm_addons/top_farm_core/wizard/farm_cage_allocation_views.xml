@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_cage_allocation_wizard_form" model="ir.ui.view">
+        <field name="name">farm.cage.allocation.wizard.form</field>
+        <field name="model">farm.cage.allocation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Allocate Birds to Cages">
+                <group>
+                    <group>
+                        <field name="batch_location_id"/>
+                        <field name="product_id" options="{'no_create': True}"/>
+                        <field name="tracking" invisible="1"/>
+                        <field name="available_lot_ids" invisible="1"/>
+                        <field name="lot_id" invisible="tracking != 'lot'" required="tracking == 'lot'"
+                               options="{'no_create': True}"/>
+                    </group>
+                    <group>
+                        <field name="available_qty"/>
+                        <field name="allocated_qty"/>
+                        <field name="remaining_qty"/>
+                    </group>
+                </group>
+                <field name="line_ids" nolabel="1">
+                    <list editable="bottom" create="false" delete="true">
+                        <field name="cage_location_id"
+                               domain="[('parent_batch_location_id', '=', parent.batch_location_id), ('farm_hierarchy_level', '=', 'cage')]"
+                               options="{'no_create': True}"/>
+                        <field name="quantity" sum="Total"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_allocate" string="Allocate" type="object" class="btn-primary"/>
+                    <button name="action_split_equally" string="Split Equally" type="object"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

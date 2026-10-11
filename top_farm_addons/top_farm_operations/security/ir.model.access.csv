@@ -1,6 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_farm_feed_log_user,farm.feed.log.user,model_farm_feed_log,top_farm_core.group_farm_user,1,1,1,0
-access_farm_feed_log_manager,farm.feed.log.manager,model_farm_feed_log,top_farm_core.group_farm_manager,1,1,1,1
-access_farm_feed_log_line_user,farm.feed.log.line.user,model_farm_feed_log_line,top_farm_core.group_farm_user,1,1,1,1
-access_farm_egg_collection_user,farm.egg.collection.user,model_farm_egg_collection,top_farm_core.group_farm_user,1,1,1,0
-access_farm_egg_collection_manager,farm.egg.collection.manager,model_farm_egg_collection,top_farm_core.group_farm_manager,1,1,1,1

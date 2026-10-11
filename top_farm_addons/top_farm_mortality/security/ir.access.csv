@@ -1,0 +1,8 @@
+id,name,model_id,group_id/id,operation,domain
+access_farm_mortality_log_user,farm.mortality.log.user,farm.mortality.log,group_mortality_user,cru,
+access_farm_mortality_log_manager,farm.mortality.log.manager,farm.mortality.log,group_mortality_manager,crud,
+access_farm_mortality_config_user,farm.mortality.config.user,farm.mortality.config,group_mortality_user,r,
+access_farm_mortality_config_manager,farm.mortality.config.manager,farm.mortality.config,group_mortality_manager,cru,
+access_farm_mortality_action_wizard_manager,farm.mortality.action.wizard.manager,farm.mortality.action.wizard,group_mortality_manager,crud,
+rule_mortality_log_company,Mortality log: multi-company,farm.mortality.log,,crud,"[('company_id', 'in', company_ids)]"
+rule_mortality_config_company,Mortality config: multi-company,farm.mortality.config,,crud,"[('company_id', 'in', company_ids)]"

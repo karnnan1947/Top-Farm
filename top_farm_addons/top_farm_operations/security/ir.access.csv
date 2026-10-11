@@ -1,0 +1,9 @@
+id,name,model_id,group_id/id,operation,domain
+access_farm_feed_log_user,farm.feed.log.user,farm.feed.log,top_farm_core.group_farm_user,cru,
+access_farm_feed_log_manager,farm.feed.log.manager,farm.feed.log,top_farm_core.group_farm_manager,crud,
+access_farm_feed_log_line_user,farm.feed.log.line.user,farm.feed.log.line,top_farm_core.group_farm_user,crud,
+access_farm_egg_collection_user,farm.egg.collection.user,farm.egg.collection,top_farm_core.group_farm_user,cru,
+access_farm_egg_collection_manager,farm.egg.collection.manager,farm.egg.collection,top_farm_core.group_farm_manager,crud,
+rule_farm_feed_log_company,Farm Feed Log: multi-company,farm.feed.log,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_feed_log_line_company,Farm Feed Log Line: multi-company,farm.feed.log.line,,crud,"[('company_id', 'in', company_ids)]"
+rule_farm_egg_collection_company,Farm Egg Collection: multi-company,farm.egg.collection,,crud,"[('company_id', 'in', company_ids)]"

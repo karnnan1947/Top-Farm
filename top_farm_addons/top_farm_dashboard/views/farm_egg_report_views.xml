@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_egg_report_pivot" model="ir.ui.view">
+        <field name="name">farm.egg.report.pivot</field>
+        <field name="model">farm.egg.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Egg Production Analysis">
+                <field name="batch_location_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="grade" type="col"/>
+                <field name="eggs" type="measure"/>
+                <field name="hen_day_pct" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_egg_report_graph" model="ir.ui.view">
+        <field name="name">farm.egg.report.graph</field>
+        <field name="model">farm.egg.report</field>
+        <field name="arch" type="xml">
+            <graph string="Eggs by Day and Grade" type="bar" stacked="True">
+                <field name="date" interval="day"/>
+                <field name="grade"/>
+                <field name="eggs" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_egg_report_list" model="ir.ui.view">
+        <field name="name">farm.egg.report.list</field>
+        <field name="model">farm.egg.report</field>
+        <field name="arch" type="xml">
+            <list string="Egg Production" create="false" edit="false">
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="grade"/>
+                <field name="eggs" sum="Eggs"/>
+                <field name="dozens" sum="Dozens"/>
+                <field name="hen_day_pct" optional="hide"/>
+                <field name="fcr" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_egg_report_search" model="ir.ui.view">
+        <field name="name">farm.egg.report.search</field>
+        <field name="model">farm.egg.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="product_id"/>
+                <filter name="filter_date" string="Date" date="date"/>
+                <separator/>
+                <filter name="grade_large" string="Large" domain="[('grade', '=', 'large')]"/>
+                <filter name="grade_medium" string="Medium" domain="[('grade', '=', 'medium')]"/>
+                <filter name="grade_jumbo" string="Jumbo" domain="[('grade', '=', 'jumbo')]"/>
+                <filter name="grade_damage" string="Damaged / Cracked" domain="[('grade', '=', 'damage')]"/>
+                <group>
+                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_grade" string="Grade" context="{'group_by': 'grade'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'date:day'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_egg_report" model="ir.actions.act_window">
+        <field name="name">Egg Production Analysis</field>
+        <field name="res_model">farm.egg.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_farm_egg_report_search"/>
+    </record>
+</odoo>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="top_farm_dashboard.Dashboard">
+        <div class="o_farm_dashboard p-3 overflow-auto h-100">
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                <h3 class="m-0 me-auto">Flock Performance Dashboard</h3>
+                <label class="d-flex align-items-center gap-1">From
+                    <input type="date" class="form-control form-control-sm" t-model="this.from" t-on-change="this.onFilterChange"/></label>
+                <label class="d-flex align-items-center gap-1">To
+                    <input type="date" class="form-control form-control-sm" t-model="this.to" t-on-change="this.onFilterChange"/></label>
+                <select class="form-select form-select-sm w-auto" t-model="this.batch" t-on-change="this.onFilterChange">
+                    <option value="">All batches</option>
+                    <t t-foreach="this.state.data.batches" t-as="b" t-key="b.id">
+                        <option t-att-value="b.id" t-esc="b.name"/>
+                    </t>
+                </select>
+                <select class="form-select form-select-sm w-auto" t-model="this.days" t-on-change="this.onFilterChange">
+                    <option value="7">Trend: 7 days</option>
+                    <option value="14">Trend: 14 days</option>
+                    <option value="30">Trend: 30 days</option>
+                </select>
+            </div>
+            <t t-set="d" t-value="this.state.data"/>
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="o_farm_card" t-on-click="this.openPopulation" role="button">
+                        <div class="o_farm_card_title">Live Population</div>
+                        <div class="o_farm_card_value" t-esc="this.fmt(d.live_population)"/>
+                        <div class="o_farm_card_sub">birds in cages now</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div t-attf-class="o_farm_card {{ this.statusClass(d.hen_day_ok) }}" t-on-click="this.openCollections" role="button">
+                        <div class="o_farm_card_title">Hen-Day Rate</div>
+                        <div class="o_farm_card_value"><t t-esc="d.hen_day"/>%</div>
+                        <div class="o_farm_card_sub">target at least <t t-esc="d.target_hen_day"/>% · <t t-esc="this.fmt(d.eggs)"/> eggs</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div t-attf-class="o_farm_card {{ this.statusClass(d.fcr_ok) }}" t-on-click="this.openCollections" role="button">
+                        <div class="o_farm_card_title">Flock FCR</div>
+                        <div class="o_farm_card_value"><t t-esc="d.fcr"/> <small>kg/dozen</small></div>
+                        <div class="o_farm_card_sub">target at most <t t-esc="d.target_fcr"/> · <t t-esc="this.fmt(d.feed_kg)"/> kg feed</div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div t-attf-class="o_farm_card {{ this.statusClass(d.mortality_ok) }}" t-on-click="this.openMortality" role="button">
+                        <div class="o_farm_card_title">Mortality</div>
+                        <div class="o_farm_card_value"><t t-esc="d.mortality"/>%</div>
+                        <div class="o_farm_card_sub">
+                            <t t-esc="d.dead"/> dead / <t t-esc="this.fmt(d.live_population + d.dead)"/> birds
+                            <t t-if="d.pending_approval"> · <b t-esc="d.pending_approval"/> waiting approval</t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3">
+                <div class="col-12 col-xl-8">
+                    <div class="o_farm_panel">
+                        <div class="o_farm_card_title">Daily Egg Harvest by Grade</div>
+                        <div class="o_farm_chart"><canvas t-ref="this.trend.ref"/></div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-4">
+                    <div class="o_farm_panel">
+                        <div class="o_farm_card_title">Grade Mix (selected period)</div>
+                        <div class="o_farm_chart"><canvas t-ref="this.mix.ref"/></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

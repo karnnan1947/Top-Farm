@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_profitability_pivot" model="ir.ui.view">
+        <field name="name">farm.profitability.report.pivot</field>
+        <field name="model">farm.profitability.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Cage &amp; Batch Profitability">
+                <field name="batch_location_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="revenue" type="measure"/>
+                <field name="feed_cost" type="measure"/>
+                <field name="medication_cost" type="measure"/>
+                <field name="mortality_cost" type="measure"/>
+                <field name="total_cost" type="measure"/>
+                <field name="gross_profit" type="measure"/>
+                <field name="operating_margin_pct" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_profitability_graph" model="ir.ui.view">
+        <field name="name">farm.profitability.report.graph</field>
+        <field name="model">farm.profitability.report</field>
+        <field name="arch" type="xml">
+            <graph string="Profit by Cage" type="bar">
+                <field name="cage_location_id"/>
+                <field name="gross_profit" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_profitability_list" model="ir.ui.view">
+        <field name="name">farm.profitability.report.list</field>
+        <field name="model">farm.profitability.report</field>
+        <field name="arch" type="xml">
+            <list string="Profitability" create="false" edit="false" decoration-danger="low_margin">
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="revenue" sum="Revenue"/>
+                <field name="feed_cost" sum="Feed"/>
+                <field name="medication_cost" sum="Medication"/>
+                <field name="mortality_cost" sum="Mortality"/>
+                <field name="gross_profit" sum="Profit"/>
+                <field name="low_margin" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_profitability_search" model="ir.ui.view">
+        <field name="name">farm.profitability.report.search</field>
+        <field name="model">farm.profitability.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <filter name="low_margin" string="Low-margin cages" domain="[('low_margin', '=', True)]"/>
+                <separator/>
+                <group>
+                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_profitability_report" model="ir.actions.act_window">
+        <field name="name">Cage &amp; Batch Profitability</field>
+        <field name="res_model">farm.profitability.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+    </record>
+
+    <record id="view_farm_revenue_allocation_list" model="ir.ui.view">
+        <field name="name">farm.revenue.allocation.list</field>
+        <field name="model">farm.revenue.allocation</field>
+        <field name="arch" type="xml">
+            <list string="Egg Revenue Allocation" create="false" edit="false">
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="production_date"/>
+                <field name="grade"/>
+                <field name="eggs_sold" sum="Eggs"/>
+                <field name="revenue" sum="Revenue"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_revenue_allocation_pivot" model="ir.ui.view">
+        <field name="name">farm.revenue.allocation.pivot</field>
+        <field name="model">farm.revenue.allocation</field>
+        <field name="arch" type="xml">
+            <pivot string="Egg Revenue Allocation">
+                <field name="batch_location_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="grade" type="col"/>
+                <field name="revenue" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="action_farm_revenue_allocation" model="ir.actions.act_window">
+        <field name="name">Egg Revenue Allocation</field>
+        <field name="res_model">farm.revenue.allocation</field>
+        <field name="view_mode">pivot,list</field>
+    </record>
+</odoo>

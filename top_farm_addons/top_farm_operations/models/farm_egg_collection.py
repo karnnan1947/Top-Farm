@@ -280,7 +280,7 @@ class FarmEggCollection(models.Model):
             production = Production.create({
                 'product_id': product.id,
                 'product_qty': qty,
-                'product_uom_id': product.uom_id.id,
+                'uom_id': product.uom_id.id,
                 'bom_id': False,
                 'picking_type_id': warehouse.manu_type_id.id,
                 'location_src_id': components[0][1].id if components else warehouse.lot_stock_id.id,
@@ -291,7 +291,7 @@ class FarmEggCollection(models.Model):
                 'company_id': self.company_id.id,
                 'move_raw_ids': [Command.create({
                     'product_id': feed.id,
-                    'product_uom': feed.uom_id.id,
+                    'uom_id': feed.uom_id.id,
                     'product_uom_qty': feed_qty,
                     'location_id': source.id,
                     'farm_cage_location_id': self.cage_location_id.id,

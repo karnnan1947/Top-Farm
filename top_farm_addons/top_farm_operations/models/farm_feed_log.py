@@ -190,7 +190,7 @@ class FarmFeedLog(models.Model):
                 'company_id': self.company_id.id,
                 'move_ids': [Command.create({
                     'product_id': line.product_id.id,
-                    'product_uom': line.uom_id.id,
+                    'uom_id': line.uom_id.id,
                     'product_uom_qty': line.quantity,
                     'location_id': source.id,
                     'location_dest_id': destination.id,

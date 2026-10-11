@@ -21,7 +21,7 @@ class StockMove(models.Model):
 
     def _get_analytic_distribution(self):
         """
-        The Single Odoo 19 Analytic Hook:
+        The Single Odoo 20 Analytic Hook:
         Captures cage and batch analytic distribution across:
         1. Pre-laying feed & medication pickings to virtual consumption locations.
         2. Raw material feed consumption in egg harvest MOs (mrp.production).

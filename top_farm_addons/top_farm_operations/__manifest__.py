@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Top Farm Operations - Feed, Eggs & Proportional MO Engine',
-    'version': '19.0.1.0.0',
+    'version': '20.0.1.0.0',
     'category': 'Poultry Farm Operations',
     'summary': 'Daily feed and medication logging, graded egg collections, and proportional MO splitting',
     'description': """
@@ -21,8 +21,7 @@ Top Farm Daily Operations
         'mail',
     ],
     'data': [
-        'security/ir.model.access.csv',
-        'security/farm_operations_security.xml',
+        'security/ir.access.csv',
         'data/ir_sequence_data.xml',
         'data/ir_cron_data.xml',
         'views/farm_feed_log_views.xml',

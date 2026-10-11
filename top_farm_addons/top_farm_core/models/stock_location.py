@@ -31,6 +31,20 @@ class StockLocation(models.Model):
         help="Automatically resolved parent batch location for cage sublocations."
     )
 
+    parent_farm_location_id = fields.Many2one(
+        'stock.location',
+        string='Farm',
+        compute='_compute_parent_farm_location',
+        store=True,
+        recursive=True,
+        index=True,
+        help="Automatically resolved farm facility above a batch or cage (a farm is its own farm)."
+    )
+
+    unallocated_bird_count = fields.Integer(
+        string='Unallocated Birds', compute='_compute_unallocated_bird_count',
+        help="Birds sitting in the batch location itself, not yet allocated to a cage.")
+
     batch_stage = fields.Selection([
         ('pre_laying', 'Pre-Laying'),
         ('laying', 'Laying Phase'),
@@ -99,6 +113,16 @@ class StockLocation(models.Model):
             else:
                 loc.parent_batch_location_id = loc.location_id.parent_batch_location_id
 
+    @api.depends('farm_hierarchy_level', 'location_id.parent_farm_location_id')
+    def _compute_parent_farm_location(self):
+        """A farm is its own farm; everything below it inherits the nearest farm above, so moving a
+        batch to another farm re-resolves it and all of its cages. Locations outside a farm have none."""
+        for loc in self:
+            if loc.farm_hierarchy_level == 'farm':
+                loc.parent_farm_location_id = loc
+            else:
+                loc.parent_farm_location_id = loc.location_id.parent_farm_location_id
+
     @api.depends('farm_hierarchy_level', 'parent_batch_location_id.batch_stage')
     def _compute_batch_stage(self):
         for loc in self:
@@ -123,6 +147,17 @@ class StockLocation(models.Model):
                 loc.flock_age_weeks = max(0.0, round((today - arrival).days / 7.0, 1))
             else:
                 loc.flock_age_weeks = 0.0
+
+    def _compute_unallocated_bird_count(self):
+        batches = self.filtered(lambda l: l.farm_hierarchy_level == 'batch' and l._origin.id)
+        counts = {}
+        if batches:
+            for location, quantity in self.env['stock.quant']._read_group(
+                    [('location_id', 'in', batches._origin.ids), ('product_id.is_farm_bird', '=', True)],
+                    ['location_id'], ['quantity:sum']):
+                counts[location.id] = quantity
+        for loc in self:
+            loc.unallocated_bird_count = round(counts.get(loc._origin.id, 0))
 
     def _compute_live_bird_count(self):
         counts = self._origin._get_live_bird_counts()
@@ -209,7 +244,7 @@ class StockLocation(models.Model):
 
     def get_analytic_distribution_for_cage(self):
         """
-        Builds the Odoo 19 multi-plan analytic distribution dictionary.
+        Builds the Odoo 20 multi-plan analytic distribution dictionary.
         Returns: {f"{batch_account_id},{cage_account_id}": 100.0}
         Creates ONE single analytic line with both plan columns populated, preventing cost doubling.
         """
@@ -229,6 +264,62 @@ class StockLocation(models.Model):
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
             raise AccessError(_("Only Farm Managers can start the Laying Phase."))
         self._start_laying_phase()
+        return True
+
+    def _check_batch_stage_change(self, from_stage):
+        """Manager-only correction of the flock stage (never callable by an operator, whatever the context)."""
+        self.ensure_one()
+        if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
+            raise AccessError(_("Only Farm Managers can change the stage of a flock."))
+        if self.farm_hierarchy_level != 'batch':
+            raise UserError(_("The stage is changed on a 'Batch / Flock' location, not on '%s'.", self.display_name))
+        if self.batch_stage != from_stage:
+            raise UserError(_("This flock is not in the '%(stage)s' stage.",
+                              stage=dict(self._fields['batch_stage'].selection).get(from_stage)))
+
+    def action_allocate_birds(self):
+        """Manager button on a batch: open the wizard that moves its birds into its cages."""
+        self.ensure_one()
+        if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
+            raise AccessError(_("Only Farm Managers can allocate birds to cages."))
+        if self.farm_hierarchy_level != 'batch':
+            raise UserError(_("Birds are allocated from a 'Batch / Flock' location, not from '%s'.", self.display_name))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Allocate Birds to Cages"),
+            'res_model': 'farm.cage.allocation.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_batch_location_id': self.id},
+        }
+
+    def action_back_to_pre_laying(self):
+        """Manager button: correct a flock that was moved to Laying by mistake. Its cages follow."""
+        self.ensure_one()
+        self._check_batch_stage_change('laying')
+        company = self.company_id or self.env.company
+        if (company.laying_transition_mode == 'automatic' and self.chick_arrival_date
+                and self.flock_age_weeks >= company.laying_start_age_weeks):
+            raise UserError(_(
+                "The daily check is in automatic mode and this flock is already %(age)s weeks old "
+                "(target %(target)s): it would start the Laying Phase again tonight. Switch the "
+                "Laying Phase Transition to manual in the Top Farm settings, or correct the Chick "
+                "Arrival Date, before moving it back.",
+                age=f"{self.flock_age_weeks:.1f}", target=f"{company.laying_start_age_weeks:g}"))
+        self.batch_stage = 'pre_laying'
+        self.message_post(body=_("Flock moved back to Pre-Laying by %(user)s at %(age)s weeks.",
+                                 user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}"),
+                          subtype_xmlid='mail.mt_note')
+        return True
+
+    def action_mark_spent(self):
+        """Manager button: the laying cycle is over; the flock becomes Spent Hen / Depleted. Its cages follow."""
+        self.ensure_one()
+        self._check_batch_stage_change('laying')
+        self.batch_stage = 'spent'
+        self.message_post(body=_("Flock marked as Spent Hen / Depleted by %(user)s at %(age)s weeks.",
+                                 user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}"),
+                          subtype_xmlid='mail.mt_note')
         return True
 
     def _start_laying_phase(self, automatic=False):

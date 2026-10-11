@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_dashboard_config_form" model="ir.ui.view">
+        <field name="name">farm.dashboard.config.form</field>
+        <field name="model">farm.dashboard.config</field>
+        <field name="arch" type="xml">
+            <form string="Dashboard Settings" create="false" delete="false">
+                <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
+                        <field name="accounting_warning" readonly="1" nolabel="1"/>
+                    </div>
+                    <group string="Targets">
+                        <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                        <field name="target_hen_day_pct"/>
+                        <field name="target_fcr"/>
+                        <field name="mortality_alert_pct"/>
+                        <field name="low_margin_pct"/>
+                    </group>
+                    <group string="Cost Classification (profitability report)">
+                        <field name="feed_category_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        <field name="medication_category_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                    </group>
+                    <p class="text-muted">Mortality loss needs no setting: every analytic cost of a product flagged
+                        as a Farm Bird counts as mortality loss.</p>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_farm_dashboard_config" model="ir.actions.server">
+        <field name="name">Dashboard Settings</field>
+        <field name="model_id" ref="model_farm_dashboard_config"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_config()</field>
+    </record>
+</odoo>

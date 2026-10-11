@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_stock_location_farm_user,stock.location.farm.user,stock.location,group_farm_user,ru,
+access_stock_location_farm_manager,stock.location.farm.manager,stock.location,group_farm_manager,crud,
+access_farm_cage_allocation_wizard_manager,farm.cage.allocation.wizard.manager,farm.cage.allocation.wizard,group_farm_manager,crud,
+access_farm_cage_allocation_wizard_line_manager,farm.cage.allocation.wizard.line.manager,farm.cage.allocation.wizard.line,group_farm_manager,crud,

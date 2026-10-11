@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_feed_report_pivot" model="ir.ui.view">
+        <field name="name">farm.feed.report.pivot</field>
+        <field name="model">farm.feed.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Feed Consumption Analysis">
+                <field name="batch_location_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="input_type" type="col"/>
+                <field name="quantity" type="measure"/>
+                <field name="cost" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_feed_report_graph" model="ir.ui.view">
+        <field name="name">farm.feed.report.graph</field>
+        <field name="model">farm.feed.report</field>
+        <field name="arch" type="xml">
+            <graph string="Consumption by Day" type="bar" stacked="True">
+                <field name="date" interval="day"/>
+                <field name="input_type"/>
+                <field name="quantity" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_feed_report_list" model="ir.ui.view">
+        <field name="name">farm.feed.report.list</field>
+        <field name="model">farm.feed.report</field>
+        <field name="arch" type="xml">
+            <list string="Feed Consumption" create="false" edit="false">
+                <field name="date"/>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="product_id"/>
+                <field name="input_type"/>
+                <field name="consumption" optional="hide"/>
+                <field name="quantity" sum="Quantity"/>
+                <field name="uom_id"/>
+                <field name="cost" sum="Cost"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_feed_report_search" model="ir.ui.view">
+        <field name="name">farm.feed.report.search</field>
+        <field name="model">farm.feed.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="batch_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="product_id"/>
+                <filter name="filter_date" string="Date" date="date"/>
+                <separator/>
+                <filter name="type_feed" string="Feed" domain="[('input_type', '=', 'feed')]"/>
+                <filter name="type_med" string="Medication / Vaccine" domain="[('input_type', '=', 'medication')]"/>
+                <separator/>
+                <filter name="via_mo" string="Laying (egg production)" domain="[('consumption', '=', 'egg_mo')]"/>
+                <filter name="via_direct" string="Direct expense" domain="[('consumption', '=', 'direct')]"/>
+                <group>
+                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_type" string="Type" context="{'group_by': 'input_type'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'date:day'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_feed_report" model="ir.actions.act_window">
+        <field name="name">Feed Consumption Analysis</field>
+        <field name="res_model">farm.feed.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_farm_feed_report_search"/>
+    </record>
+</odoo>

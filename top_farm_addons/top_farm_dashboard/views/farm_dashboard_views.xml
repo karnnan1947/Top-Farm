@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_farm_dashboard_kpis" model="ir.actions.client">
+        <field name="name">Flock Performance Dashboard</field>
+        <field name="tag">top_farm_dashboard.main</field>
+    </record>
+</odoo>

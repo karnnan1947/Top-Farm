@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_top_farm_analytics_root" name="Farm Analytics &amp; KPIs"
+              parent="top_farm_core.menu_top_farm_root" sequence="50"/>
+    <menuitem id="menu_top_farm_dashboard_kpis" name="Flock Performance Dashboard"
+              parent="menu_top_farm_analytics_root" action="action_farm_dashboard_kpis" sequence="10"/>
+    <menuitem id="menu_top_farm_profitability" name="Cage &amp; Batch Profitability"
+              parent="menu_top_farm_analytics_root" action="action_farm_profitability_report" sequence="20"
+              groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+    <menuitem id="menu_top_farm_egg_report" name="Egg Production Analysis"
+              parent="menu_top_farm_analytics_root" action="action_farm_egg_report" sequence="22"/>
+    <menuitem id="menu_top_farm_feed_report" name="Feed Consumption Analysis"
+              parent="menu_top_farm_analytics_root" action="action_farm_feed_report" sequence="23"
+              groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+    <menuitem id="menu_top_farm_revenue_allocation" name="Egg Revenue Allocation"
+              parent="menu_top_farm_analytics_root" action="action_farm_revenue_allocation" sequence="25"
+              groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+    <menuitem id="menu_top_farm_mortality_bi" name="Mortality BI Analysis"
+              parent="menu_top_farm_analytics_root" action="action_farm_mortality_bi" sequence="30"/>
+    <menuitem id="menu_top_farm_dashboard_settings" name="Dashboard Settings"
+              parent="top_farm_core.menu_top_farm_config" action="action_farm_dashboard_config" sequence="20"
+              groups="top_farm_core.group_farm_manager"/>
+</odoo>
