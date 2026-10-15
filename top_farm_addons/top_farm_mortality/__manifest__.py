@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Mortality - Poultry Loss Tracking & Approvals',
-    'version': '20.0.1.0.0',
+    'version': '20.0.1.1.0',
     'category': 'Inventory/Poultry',
     'summary': 'Daily mortality logging with live-stock guard, cumulative daily approval threshold, and automated scrap',
     'description': """

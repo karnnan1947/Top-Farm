@@ -1,5 +1,5 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 
 class FarmDashboardConfig(models.Model):
@@ -42,7 +42,28 @@ class FarmDashboardConfig(models.Model):
                 lines.append(_("No Feed categories are set: feed cost will show as 0 in the profitability report."))
             if not cfg.medication_category_ids:
                 lines.append(_("No Medication categories are set: medication cost will show as 0."))
+            # Costs reach the profitability report through the analytic accounts: without one a cage or
+            # batch is silently absent from it (it still shows in the Feed Consumption report).
+            missing = self.env['stock.location'].sudo().search([
+                ('farm_hierarchy_level', 'in', ('batch', 'cage')), ('farm_analytic_account_id', '=', False),
+                ('company_id', 'in', [cfg.company_id.id, False])])
+            if missing:
+                lines.append(_("%(count)s batch/cage location(s) have no Farm Analytic Account, so their costs are "
+                               "not in the profitability report: %(names)s.",
+                               count=len(missing), names=', '.join(missing.mapped('display_name'))))
             cfg.accounting_warning = '\n'.join(lines)
+
+    def action_resync_stock_analytics(self):
+        """Re-price the analytic lines of every done farm stock move at the move's current value (repairs lines
+        left behind by a revaluation made before the automatic re-sync existed)."""
+        if not self.env.user.has_group('top_farm_core.group_farm_manager'):
+            raise AccessError(_("Only Farm Managers can re-sync the stock analytics."))
+        products = self.env['product.product'].sudo().search(
+            ['|', ('farm_input_type', '!=', False), ('is_farm_bird', '=', True)])
+        moves = products._farm_resync_stock_analytics()
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {
+            'type': 'success', 'title': _("Stock analytics re-synced"),
+            'message': _("%s stock moves checked; their analytic lines now match the stock value.", len(moves))}}
 
     @api.model
     def _get_config(self, company=None):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Top Farm Core - Poultry Hierarchy & Analytics',
-    'version': '20.0.1.1.0',
+    'version': '20.0.1.2.0',
     'category': 'Poultry Farm Operations',
     'summary': 'Physical farm hierarchy, live bird tracking, and analytic tagging for commercial poultry layers',
     'description': """

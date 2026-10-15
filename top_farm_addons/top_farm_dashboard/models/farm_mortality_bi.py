@@ -7,6 +7,11 @@ class FarmMortalityBI(models.Model):
     _description = 'Mortality Analysis (ratio-correct)'
     _auto = False
     _order = 'date desc, id'
+    # SQL view: flush these before reading it (e.g. the dashboard right after a log is submitted)
+    _depends = {
+        'farm.mortality.log': ['date', 'company_id', 'batch_location_id', 'cage_location_id', 'bird_product_id',
+                               'cause_of_death', 'dead_bird_count', 'opening_population', 'state'],
+    }
 
     date = fields.Date(readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)

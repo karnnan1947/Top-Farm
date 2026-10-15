@@ -5,17 +5,23 @@ from odoo.exceptions import ValidationError
 class FarmMortalityConfig(models.Model):
     _name = 'farm.mortality.config'
     _description = 'Mortality Controls (per company)'
+    _inherit = ['mail.thread']
     _rec_name = 'company_id'
 
     company_id = fields.Many2one('res.company', required=True, default=lambda s: s.env.company)
     daily_mortality_threshold_pct = fields.Float(
-        string='Daily Mortality Approval Threshold (%)', default=2.0,
+        string='Daily Mortality Approval Threshold (%)', default=2.0, tracking=True,
         help="Cumulative dead birds in one cage on one day, as a percentage of the cage's opening "
              "population, above which Farm Manager approval is mandatory.")
     min_dead_count = fields.Integer(
-        string='Minimum Dead Birds For Approval', default=0,
+        string='Minimum Dead Birds For Approval', default=0, tracking=True,
         help="Approval is only required when the cumulative dead count also exceeds this number. "
              "0 = no floor. Useful for very small cages.")
+    threshold_rule = fields.Selection(
+        [('above', 'Above the threshold (>)'), ('at_or_above', 'At or above the threshold (≥)')],
+        string='Approval Required When Mortality Is', required=True, default='above', tracking=True,
+        help="Above: exactly the threshold (e.g. 2.00 % with a 2 % threshold) is scrapped without approval. "
+             "At or above: exactly the threshold already needs Farm Manager approval.")
     accounting_warning = fields.Text(compute='_compute_accounting_warning')
 
     _company_uniq = models.Constraint('unique(company_id)', 'Only one mortality configuration per company.')

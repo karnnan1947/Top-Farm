@@ -5,6 +5,11 @@
         <field name="model">farm.dashboard.config</field>
         <field name="arch" type="xml">
             <form string="Dashboard Settings" create="false" delete="false">
+                <header>
+                    <button name="action_resync_stock_analytics" type="object" string="Re-sync Stock Analytics"
+                            groups="top_farm_core.group_farm_manager"
+                            help="Re-price the analytic lines of all done feed, medication and bird moves at their current stock value."/>
+                </header>
                 <sheet>
                     <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
                         <field name="accounting_warning" readonly="1" nolabel="1"/>

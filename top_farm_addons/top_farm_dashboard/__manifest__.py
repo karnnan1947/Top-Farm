@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Dashboard - Biological KPIs & Cage P&L Analytics',
-    'version': '20.0.1.0.0',
+    'version': '20.0.1.1.0',
     'category': 'Inventory/Poultry',
     'summary': 'Executive poultry KPIs, delivery-lot invoice tagging, size-weighted egg revenue and cage P&L',
     'description': """

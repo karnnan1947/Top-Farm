@@ -46,15 +46,17 @@ class FarmDashboard(models.AbstractModel):
         hen_day = round(eggs / bird_days * 100.0, 2) if bird_days else 0.0
         fcr = round(feed / (eggs / 12.0), 3) if eggs else 0.0
 
-        # Mortality of the period (only logs that really scrapped birds)
+        # Mortality of the period (only logs that really scrapped birds). Same basis as Mortality BI and as the
+        # approval threshold: dead birds over the opening population of each cage-day, so a period of several
+        # days gives the average daily rate and is compared with the daily threshold like for like.
         log_domain = [('company_id', 'in', company_ids), ('date', '>=', date_from), ('date', '<=', date_to)]
         if batch_id:
             log_domain.append(('batch_location_id', '=', batch_id))
-        Log = env['farm.mortality.log']
-        dead = Log._read_group(log_domain + [('state', '=', 'done')], [], ['dead_bird_count:sum'])[0][0] or 0
-        pending = Log.search_count(log_domain + [('state', '=', 'waiting_approval')])
-        flock = live + dead
-        mortality = round(dead / flock * 100.0, 3) if flock else 0.0
+        dead, base = env['farm.mortality.bi']._read_group(
+            log_domain, [], ['dead_bird_count:sum', 'population_base:sum'])[0]
+        dead, base = dead or 0, base or 0
+        pending = env['farm.mortality.log'].search_count(log_domain + [('state', '=', 'waiting_approval')])
+        mortality = round(dead / base * 100.0, 3) if base else 0.0
         alert = cfg.mortality_alert_pct or env['farm.mortality.config']._get_config().daily_mortality_threshold_pct
 
         # Daily harvest trend
@@ -82,7 +84,8 @@ class FarmDashboard(models.AbstractModel):
             'target_hen_day': cfg.target_hen_day_pct,
             'fcr': fcr, 'fcr_ok': (fcr <= cfg.target_fcr) if eggs else None, 'target_fcr': cfg.target_fcr,
             'feed_kg': feed,
-            'dead': dead, 'mortality': mortality, 'mortality_ok': mortality <= alert,
+            'dead': dead, 'mortality_base': base, 'multi_day': date_from != date_to,
+            'mortality': mortality, 'mortality_ok': mortality <= alert,
             'mortality_alert': alert, 'pending_approval': pending,
             'grade_mix': grade_mix, 'trend': trend,
             'batches': [{'id': b.id, 'name': b.display_name} for b in env['stock.location'].search(

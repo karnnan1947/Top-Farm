@@ -48,7 +48,7 @@
                         <div class="o_farm_card_title">Mortality</div>
                         <div class="o_farm_card_value"><t t-esc="d.mortality"/>%</div>
                         <div class="o_farm_card_sub">
-                            <t t-esc="d.dead"/> dead / <t t-esc="this.fmt(d.live_population + d.dead)"/> birds
+                            <t t-if="d.multi_day">avg daily · </t><t t-esc="d.dead"/> dead / <t t-esc="this.fmt(d.mortality_base)"/> opening birds
                             <t t-if="d.pending_approval"> · <b t-esc="d.pending_approval"/> waiting approval</t>
                         </div>
                     </div>

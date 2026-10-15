@@ -55,6 +55,8 @@
                             <field name="mortality_pct" force_save="1" decoration-danger="requires_approval"
                                    decoration-success="not requires_approval"/>
                             <field name="threshold_pct_used" force_save="1"/>
+                            <field name="threshold_rule_used" force_save="1"/>
+                            <field name="min_dead_count_used" force_save="1"/>
                             <field name="requires_approval" force_save="1"/>
                         </group>
                     </group>

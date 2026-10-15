@@ -17,7 +17,7 @@ was standalone, see B0). Tested on a fresh Odoo 19.0 Community database (`topfar
 | L3 | A journal entry to the loss account only posts if the bird category is `real_time` **and** the "Bird Mortality" location has a Loss Account. | Otherwise stock + analytic lines are created but no journal entry. The Mortality Controls form shows a warning. |
 | L4 | Cage and batch analytic accounts must be in different analytic plans. | Enforced by `top_farm_core` (constraint on the location). |
 | L5 | Backdated logs still move stock **today**. | Scrap/reversal date is the posting date; only the log's `date` (daily window) is backdated. |
-| L6 | Opening population for a backdated date = live now + done deaths since that date. | Approximation; birds moved in/out since then are not reconstructed. |
+| L6 | Opening population for a date = live now − birds moved into the cage after that day (net of transfers out) + done deaths from that date. | Rebuilt from stock history since 20.0.1.1.0 (before, transfers after a backdated date were ignored, which could hide a mortality spike). Birds moved out *during* the incident day itself are not in the base (end-of-day population). |
 | L7 | After one entry pushes a cage over the threshold, later entries that day also need approval. | Intended (anti-bypass). |
 | L8 | Threshold is one value per company, not per cage or flock stage. | Use the minimum-dead-bird floor for small/young cages. |
 | L9 | No second-approver rule; a manager can approve their own entry (client decision). | Audited via approved_by / date / chatter. |
