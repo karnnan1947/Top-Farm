@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Two independent root plans: a cage cost carries both accounts on ONE analytic line,
+             one column per root plan, so a flock and a cage account must never share a plan. -->
+        <record id="analytic_plan_flock_batches" model="account.analytic.plan">
+            <field name="name">Flock Batches</field>
+        </record>
+        <record id="analytic_plan_farm_cages" model="account.analytic.plan">
+            <field name="name">Farm Cages</field>
+        </record>
+    </data>
+</odoo>

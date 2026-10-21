@@ -5,15 +5,19 @@ from odoo import fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
-    laying_transition_mode = fields.Selection(
-        related='company_id.laying_transition_mode',
+    farm_lot_generation_mode = fields.Selection(
+        related='company_id.farm_lot_generation_mode',
         readonly=False,
     )
-    laying_start_age_weeks = fields.Float(
-        related='company_id.laying_start_age_weeks',
+    farm_lot_date_source = fields.Selection(
+        related='company_id.farm_lot_date_source',
         readonly=False,
     )
-    laying_notification_advance_weeks = fields.Float(
-        related='company_id.laying_notification_advance_weeks',
+    farm_flock_auto_analytic = fields.Boolean(
+        related='company_id.farm_flock_auto_analytic',
+        readonly=False,
+    )
+    farm_flock_analytic_plan_id = fields.Many2one(
+        related='company_id.farm_flock_analytic_plan_id',
         readonly=False,
     )

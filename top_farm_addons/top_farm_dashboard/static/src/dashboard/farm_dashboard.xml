@@ -8,10 +8,10 @@
                     <input type="date" class="form-control form-control-sm" t-model="this.from" t-on-change="this.onFilterChange"/></label>
                 <label class="d-flex align-items-center gap-1">To
                     <input type="date" class="form-control form-control-sm" t-model="this.to" t-on-change="this.onFilterChange"/></label>
-                <select class="form-select form-select-sm w-auto" t-model="this.batch" t-on-change="this.onFilterChange">
-                    <option value="">All batches</option>
-                    <t t-foreach="this.state.data.batches" t-as="b" t-key="b.id">
-                        <option t-att-value="b.id" t-esc="b.name"/>
+                <select class="form-select form-select-sm w-auto" t-model="this.flock" t-on-change="this.onFilterChange">
+                    <option value="">All active flocks</option>
+                    <t t-foreach="this.state.data.flocks" t-as="f" t-key="f.id">
+                        <option t-att-value="f.id" t-esc="f.name"/>
                     </t>
                 </select>
                 <select class="form-select form-select-sm w-auto" t-model="this.days" t-on-change="this.onFilterChange">
@@ -26,7 +26,7 @@
                     <div class="o_farm_card" t-on-click="this.openPopulation" role="button">
                         <div class="o_farm_card_title">Live Population</div>
                         <div class="o_farm_card_value" t-esc="this.fmt(d.live_population)"/>
-                        <div class="o_farm_card_sub">birds in cages now</div>
+                        <div class="o_farm_card_sub" t-esc="d.population_detail"/>
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">

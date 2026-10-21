@@ -19,7 +19,7 @@ export class FarmDashboard extends Component {
         // t-model binds to signals in Owl 3
         this.from = signal(today);
         this.to = signal(today);
-        this.batch = signal("");
+        this.flock = signal("");
         this.days = signal("7");
         this.state = proxy({ data: null });
         // Odoo's own Chart.js hook: loads the library, draws after mount and after every patch
@@ -32,7 +32,7 @@ export class FarmDashboard extends Component {
         this.state.data = await this.orm.call("farm.dashboard", "get_kpis", [], {
             date_from: this.from(),
             date_to: this.to(),
-            batch_id: this.batch() ? parseInt(this.batch()) : false,
+            flock_id: this.flock() ? parseInt(this.flock()) : false,
             trend_days: parseInt(this.days()),
         });
     }
@@ -102,8 +102,8 @@ export class FarmDashboard extends Component {
         return ok === null || ok === undefined ? "" : ok ? "o_farm_ok" : "o_farm_bad";
     }
 
-    get batchDomain() {
-        return this.batch() ? [["batch_location_id", "=", parseInt(this.batch())]] : [];
+    get flockDomain() {
+        return this.flock() ? [["flock_lot_id", "=", parseInt(this.flock())]] : [];
     }
 
     openCollections() {
@@ -116,7 +116,7 @@ export class FarmDashboard extends Component {
                 ["state", "=", "done"],
                 ["date", ">=", this.from()],
                 ["date", "<=", this.to()],
-                ...this.batchDomain,
+                ...this.flockDomain,
             ],
         });
     }
@@ -132,20 +132,22 @@ export class FarmDashboard extends Component {
                 ["state", "=", "done"],
                 ["date", ">=", this.from()],
                 ["date", "<=", this.to()],
-                ...this.batchDomain,
+                ...(this.flock() ? [["lot_id", "=", parseInt(this.flock())]] : []),
             ],
         });
     }
 
     openPopulation() {
-        // the live birds behind the card: bird stock in the cages, of the selected batch
+        // the live birds behind the card: the active flocks in their brooding nurseries and cages
         const domain = [
             ["product_id.is_farm_bird", "=", true],
-            ["location_id.farm_hierarchy_level", "=", "cage"],
+            ["location_id.usage", "=", "internal"],
+            ["lot_id.is_flock_batch", "=", true],
+            ["lot_id.flock_stage", "!=", "spent"],
             ["quantity", ">", 0],
         ];
-        if (this.batch()) {
-            domain.push(["location_id.parent_batch_location_id", "=", parseInt(this.batch())]);
+        if (this.flock()) {
+            domain.push(["lot_id", "=", parseInt(this.flock())]);
         }
         this.action.doAction({
             type: "ir.actions.act_window",
@@ -153,7 +155,7 @@ export class FarmDashboard extends Component {
             res_model: "stock.quant",
             views: [[false, "list"]],
             domain,
-            context: { create: false, edit: false, delete: false, group_by: ["location_id"] },
+            context: { create: false, edit: false, delete: false, group_by: ["lot_id", "location_id"] },
         });
     }
 }

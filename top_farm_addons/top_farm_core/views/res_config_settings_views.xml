@@ -10,23 +10,29 @@
             <xpath expr="//form" position="inside">
                 <app data-string="Top Farm" string="Top Farm" name="top_farm_core"
                      groups="top_farm_core.group_farm_manager">
-                    <block title="Flock Lifecycle" name="top_farm_lifecycle_setting_container">
-                        <setting id="setting_laying_transition_mode" company_dependent="1"
-                                 string="Laying Phase Transition"
-                                 help="Start the Laying Phase by manager button only, or automatically when flocks reach the target age. The button stays available in both modes for an early start.">
-                            <field name="laying_transition_mode" class="o_light_label" widget="radio"/>
+                    <block title="Flock Dispatch &amp; Lot Generation" name="top_farm_lot_setting_container">
+                        <setting id="setting_farm_lot_generation_mode" company_dependent="1"
+                                 string="Flock Lot Generation Mode"
+                                 help="How the flock lot is set when chicks are dispatched from the main warehouse to an estate's brooding nursery.">
+                            <field name="farm_lot_generation_mode" class="o_light_label" widget="radio"/>
+                            <div class="text-muted mt-1" invisible="farm_lot_generation_mode != 'manual'">
+                                The clerk enters the flock lot (e.g. IHL-19-10-2026) in the Flock Lot column of the transfer, next to the hatchery lot, before validating.
+                            </div>
                         </setting>
-                        <setting id="setting_laying_ages" company_dependent="1"
-                                 string="Point-of-Lay Timing"
-                                 help="Target flock age for the Laying Phase, and how many weeks earlier the Farm Managers receive the inspection alert.">
-                            <div class="content-group">
+                        <setting id="setting_farm_lot_date_source" company_dependent="1"
+                                 string="Estate Lot Date Source"
+                                 invisible="farm_lot_generation_mode != 'auto'"
+                                 help="Date embedded in the generated lot: [Estate Code]-[Selected Date], e.g. IHL-19-10-2026. The estate code is set on the farm location.">
+                            <field name="farm_lot_date_source" class="o_light_label" widget="radio"/>
+                        </setting>
+                        <setting id="setting_farm_flock_analytic" company_dependent="1"
+                                 help="Every new flock lot gets its own analytic account, so its brooding, cage and laying costs can be reported per flock.">
+                            <field name="farm_flock_auto_analytic"/>
+                            <div class="content-group" invisible="not farm_flock_auto_analytic">
                                 <div class="row mt-2">
-                                    <label for="laying_start_age_weeks" class="col-lg-6 o_light_label"/>
-                                    <field name="laying_start_age_weeks" class="col-lg-2"/>
-                                </div>
-                                <div class="row mt-1">
-                                    <label for="laying_notification_advance_weeks" class="col-lg-6 o_light_label"/>
-                                    <field name="laying_notification_advance_weeks" class="col-lg-2"/>
+                                    <label for="farm_flock_analytic_plan_id" string="Plan" class="col-lg-3 o_light_label"/>
+                                    <field name="farm_flock_analytic_plan_id" class="col-lg-6"
+                                           placeholder="Flock Batches" options="{'no_create': True}"/>
                                 </div>
                             </div>
                         </setting>

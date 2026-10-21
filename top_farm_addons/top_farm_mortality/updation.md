@@ -6,6 +6,18 @@ Living log of (A) known limitations, (B) deviations from `Top_Farm_Module_3_Mort
 Status: **built**. Depends on **`top_farm_core`** (client decision after the build review; the original design
 was standalone, see B0). Tested on a fresh Odoo 19.0 Community database (`topfarm_test`, throwaway). See section D.
 
+## 20.0.2.0.0 — revised flock workflow (supersedes the cage/batch wording below)
+
+- A log is per **flock lot** in a **brooding nursery or a cage** (`location_id`, was `cage_location_id`); the
+  batch location is gone (`farm_location_id` = the farm). The flock lot is required.
+- Opening population, cumulative dead and the hard guard are per flock in that location (location + lot), so the
+  > 2 % threshold applies to the brooding chicks from day 0.
+- The scrap move carries `farm_location_id` and `farm_flock_lot_id`: core charges it 100 % to the flock account
+  in a brooding nursery, and to flock + cage (one analytic line) in a cage. The Reverse move uses the same
+  distribution (`stock.lot.get_flock_analytic_distribution`).
+- Verified on a fresh Odoo 20.0 Enterprise database with the end-to-end flock scenario (brooding 1 % scrapped,
+  cumulative 2.2 % waiting approval then approved, cage scrap on flock + cage) and an operator role check.
+
 ---
 
 ## A. Known limitations

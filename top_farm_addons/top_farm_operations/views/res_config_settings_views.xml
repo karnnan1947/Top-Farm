@@ -5,7 +5,32 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="top_farm_core.res_config_settings_view_form_top_farm"/>
         <field name="arch" type="xml">
-            <xpath expr="//block[@name='top_farm_lifecycle_setting_container']" position="after">
+            <xpath expr="//block[@name='top_farm_lot_setting_container']" position="after">
+                <block title="Laying Phase Transition" name="top_farm_lifecycle_setting_container">
+                    <setting id="setting_laying_transition_mode" company_dependent="1"
+                             string="Laying Phase Transition"
+                             help="The Laying Phase is never forced by the calendar: it is triggered when a flock sustains the hen-day benchmark. Alert the Farm Managers so a manager confirms it, or start it automatically.">
+                        <field name="laying_transition_mode" class="o_light_label" widget="radio"/>
+                    </setting>
+                    <setting id="setting_laying_benchmark" company_dependent="1"
+                             string="Hen-Day Benchmark"
+                             help="Rolling hen-day rate = eggs harvested over the window / live bird days over the window x 100. Checked daily, and after each egg collection, once the flock has reached the minimum age.">
+                        <div class="content-group">
+                            <div class="row mt-2">
+                                <label for="laying_hen_day_threshold_pct" class="col-lg-6 o_light_label"/>
+                                <field name="laying_hen_day_threshold_pct" class="col-lg-2"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="laying_rolling_days" class="col-lg-6 o_light_label"/>
+                                <field name="laying_rolling_days" class="col-lg-2"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="laying_min_age_weeks" class="col-lg-6 o_light_label"/>
+                                <field name="laying_min_age_weeks" class="col-lg-2"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
                 <block title="Daily Operations" name="top_farm_operations_setting_container">
                     <setting id="setting_farm_consumption_locations" company_dependent="1"
                              string="Consumption Locations"
@@ -23,7 +48,7 @@
                     </setting>
                     <setting id="setting_farm_egg_products" company_dependent="1"
                              string="Graded Egg Products"
-                             help="Default products and store for new egg collections. A batch can have its own Egg Store Location.">
+                             help="Default products and store for new egg collections. A farm can have its own Egg Store Location.">
                         <div class="content-group">
                             <div class="row mt-2">
                                 <label for="farm_egg_location_id" string="Egg Store" class="col-lg-4 o_light_label"/>

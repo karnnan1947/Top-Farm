@@ -14,7 +14,7 @@
                         <label for="daily_mortality_threshold_pct"/>
                         <div class="o_row">
                             <field name="daily_mortality_threshold_pct" class="oe_inline"/>
-                            <span>% per cage / day (cumulative, on the opening population)</span>
+                            <span>% per flock, brooding nursery or cage / day (cumulative, on the opening population)</span>
                         </div>
                         <field name="threshold_rule" widget="radio"/>
                         <label for="min_dead_count"/>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_production_lot_form_top_farm_operations" model="ir.ui.view">
+        <field name="name">stock.lot.form.top_farm.operations</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="top_farm_core.view_production_lot_form_top_farm"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_feed_logs" type="object" class="oe_stat_button" icon="restaurant"
+                        string="Feed Logs" invisible="not is_flock_batch" groups="top_farm_core.group_farm_user"/>
+                <button name="action_view_egg_collections" type="object" class="oe_stat_button" icon="shopping_basket"
+                        string="Egg Collections" invisible="flock_stage not in ('rearing', 'laying', 'spent')"
+                        groups="top_farm_core.group_farm_user"/>
+            </xpath>
+            <xpath expr="//field[@name='flock_location_ids']" position="after">
+                <field name="rolling_hen_day_pct" invisible="flock_stage not in ('rearing', 'laying')"/>
+                <field name="laying_notification_sent" invisible="flock_stage != 'rearing' or not laying_notification_sent"/>
+            </xpath>
+            <!-- Egg lots: their parent flock and production day -->
+            <xpath expr="//field[@name='product_id']" position="after">
+                <field name="farm_flock_lot_id" invisible="not farm_flock_lot_id"/>
+                <field name="farm_production_date" invisible="not farm_production_date"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_farm_flock_lot_list_operations" model="ir.ui.view">
+        <field name="name">stock.lot.list.top_farm.flock.operations</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="top_farm_core.view_farm_flock_lot_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='live_bird_count']" position="after">
+                <field name="rolling_hen_day_pct" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

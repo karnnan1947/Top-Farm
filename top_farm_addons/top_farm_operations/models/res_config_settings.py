@@ -24,3 +24,7 @@ class ResConfigSettings(models.TransientModel):
         related='company_id.farm_egg_jumbo_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
     farm_egg_damage_product_id = fields.Many2one(
         related='company_id.farm_egg_damage_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
+    laying_transition_mode = fields.Selection(related='company_id.laying_transition_mode', readonly=False)
+    laying_min_age_weeks = fields.Float(related='company_id.laying_min_age_weeks', readonly=False)
+    laying_hen_day_threshold_pct = fields.Float(related='company_id.laying_hen_day_threshold_pct', readonly=False)
+    laying_rolling_days = fields.Integer(related='company_id.laying_rolling_days', readonly=False)

@@ -6,35 +6,13 @@
         <field name="model">stock.location</field>
         <field name="inherit_id" ref="stock.view_location_form"/>
         <field name="arch" type="xml">
-            <!-- Header buttons & statusbar -->
             <xpath expr="//sheet" position="before">
-                <header groups="top_farm_core.group_farm_user">
-                    <button name="action_start_laying_phase"
-                            string="Start Laying Phase"
+                <header groups="top_farm_core.group_farm_manager" invisible="farm_hierarchy_level != 'brooding'">
+                    <button name="action_allocate_birds"
+                            string="Allocate Flock to Cages"
                             type="object"
                             class="oe_highlight"
-                            invisible="farm_hierarchy_level != 'batch' or batch_stage != 'pre_laying'"
-                            groups="top_farm_core.group_farm_manager"/>
-                    <button name="action_allocate_birds"
-                            string="Allocate Birds to Cages"
-                            type="object"
-                            invisible="farm_hierarchy_level != 'batch'"
-                            groups="top_farm_core.group_farm_manager"/>
-                    <button name="action_mark_spent"
-                            string="Mark as Spent"
-                            type="object"
-                            invisible="farm_hierarchy_level != 'batch' or batch_stage != 'laying'"
-                            confirm="Mark this flock as Spent Hen / Depleted? Its cages follow."
-                            groups="top_farm_core.group_farm_manager"/>
-                    <button name="action_back_to_pre_laying"
-                            string="Back to Pre-Laying"
-                            type="object"
-                            invisible="farm_hierarchy_level != 'batch' or batch_stage != 'laying'"
-                            confirm="Move this flock back to Pre-Laying? New feed logs will be expensed at once instead of staged. Its cages follow."
-                            groups="top_farm_core.group_farm_manager"/>
-                    <field name="batch_stage" widget="statusbar"
-                           statusbar_visible="pre_laying,laying,spent"
-                           invisible="farm_hierarchy_level not in ('batch', 'cage')"/>
+                            invisible="not flock_lot_ids"/>
                 </header>
             </xpath>
 
@@ -43,49 +21,45 @@
                 <button name="action_view_cages"
                         type="object"
                         class="oe_stat_button"
-                        icon="fa-th-large"
-                        invisible="farm_hierarchy_level not in ('farm', 'batch')"
+                        icon="grid_view"
+                        invisible="farm_hierarchy_level not in ('farm', 'shed')"
                         groups="top_farm_core.group_farm_user">
                     <field name="sub_cage_count" widget="statinfo" string="Cages"/>
                 </button>
                 <button name="action_view_live_birds"
                         type="object"
                         class="oe_stat_button"
-                        icon="fa-heartbeat"
-                        invisible="farm_hierarchy_level not in ('farm', 'batch', 'cage')"
+                        icon="favorite"
+                        invisible="not farm_hierarchy_level"
                         groups="top_farm_core.group_farm_user">
                     <field name="live_bird_count" widget="statinfo" string="Live Birds"/>
                 </button>
+                <button name="action_view_flocks"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="stacks"
+                        invisible="not flock_lot_ids"
+                        groups="top_farm_core.group_farm_user"
+                        string="Flocks"/>
             </xpath>
 
-            <!-- Poultry Farm Operations & Analytics Group -->
+            <!-- Poultry Farm Infrastructure & Analytics Group -->
             <xpath expr="//div[hasclass('oe_location_header')]" position="after">
-                <group name="top_farm_group" string="Poultry Farm Operations &amp; Analytics"
+                <group name="top_farm_group" string="Poultry Farm Infrastructure"
                        groups="top_farm_core.group_farm_user">
                     <group>
                         <field name="farm_hierarchy_level"/>
-                        <field name="parent_batch_location_id"
-                               invisible="farm_hierarchy_level != 'cage'"/>
+                        <field name="farm_code" invisible="farm_hierarchy_level != 'farm'"
+                               required="farm_hierarchy_level == 'farm'" placeholder="e.g. IHL"/>
+                        <field name="parent_farm_location_id"
+                               invisible="farm_hierarchy_level not in ('brooding', 'shed', 'cage')"/>
                         <field name="farm_analytic_account_id"
-                               invisible="not farm_hierarchy_level"/>
+                               invisible="farm_hierarchy_level != 'cage'"/>
                     </group>
-                    <group invisible="farm_hierarchy_level not in ('batch', 'cage')">
-                        <field name="chick_arrival_date"
-                               readonly="farm_hierarchy_level == 'cage'"/>
-                        <field name="flock_age_weeks"/>
-                        <field name="unallocated_bird_count"
-                               invisible="farm_hierarchy_level != 'batch'"/>
-                        <field name="laying_notification_sent"
-                               invisible="farm_hierarchy_level != 'batch'"
-                               readonly="1"/>
+                    <group invisible="farm_hierarchy_level not in ('brooding', 'cage')">
+                        <field name="flock_lot_ids" widget="many2many_tags" readonly="1"/>
                     </group>
                 </group>
-            </xpath>
-
-            <!-- Odoo 20 chatter: stage tracking, inspection alerts and To-Do activities -->
-            <xpath expr="//sheet" position="after">
-                <chatter groups="top_farm_core.group_farm_user"
-                         invisible="farm_hierarchy_level not in ('batch', 'cage')"/>
             </xpath>
         </field>
     </record>
@@ -96,20 +70,17 @@
         <field name="model">stock.location</field>
         <field name="priority">50</field>
         <field name="arch" type="xml">
-            <list string="Poultry Farm Hierarchy">
+            <list string="Poultry Farm Infrastructure">
                 <field name="complete_name" string="Location Name"/>
                 <field name="farm_hierarchy_level" widget="badge"
                        decoration-info="farm_hierarchy_level == 'farm'"
-                       decoration-warning="farm_hierarchy_level == 'batch'"
+                       decoration-warning="farm_hierarchy_level == 'brooding'"
+                       decoration-muted="farm_hierarchy_level == 'shed'"
                        decoration-success="farm_hierarchy_level == 'cage'"/>
+                <field name="farm_code" optional="show"/>
                 <field name="parent_farm_location_id" optional="show"/>
-                <field name="parent_batch_location_id"/>
-                <field name="batch_stage" widget="badge"
-                       decoration-muted="batch_stage == 'spent'"
-                       decoration-primary="batch_stage == 'pre_laying'"
-                       decoration-success="batch_stage == 'laying'"/>
-                <field name="flock_age_weeks"/>
-                <!-- No sum: a farm's count already includes its batches and cages -->
+                <field name="flock_lot_ids" widget="many2many_tags"/>
+                <!-- No sum: a farm's count already includes its nurseries and cages -->
                 <field name="live_bird_count"/>
                 <field name="farm_analytic_account_id" optional="show"/>
                 <field name="company_id" groups="base.group_multi_company" optional="hide"/>
@@ -125,43 +96,37 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='warehouse_id']" position="after">
                 <field name="parent_farm_location_id"/>
-                <field name="parent_batch_location_id"/>
             </xpath>
             <xpath expr="//filter[@name='inactive']" position="after">
                 <separator/>
                 <filter string="Farms" name="filter_farm" domain="[('farm_hierarchy_level', '=', 'farm')]"/>
-                <filter string="Flock Batches" name="filter_batch" domain="[('farm_hierarchy_level', '=', 'batch')]"/>
+                <filter string="Brooding Nurseries" name="filter_brooding" domain="[('farm_hierarchy_level', '=', 'brooding')]"/>
+                <filter string="Laying Sheds" name="filter_shed" domain="[('farm_hierarchy_level', '=', 'shed')]"/>
                 <filter string="Cages" name="filter_cage" domain="[('farm_hierarchy_level', '=', 'cage')]"/>
-                <separator/>
-                <filter string="Pre-Laying Flocks" name="filter_pre_laying" domain="[('batch_stage', '=', 'pre_laying')]"/>
-                <filter string="Active Laying Flocks" name="filter_laying" domain="[('batch_stage', '=', 'laying')]"/>
-                <filter string="Spent Flocks" name="filter_spent" domain="[('batch_stage', '=', 'spent')]"/>
             </xpath>
             <!-- Odoo 20 search <group> takes no expand/string attributes: reuse core's Group By block -->
             <xpath expr="//search/group" position="inside">
                 <filter string="Hierarchy Level" name="group_level" context="{'group_by': 'farm_hierarchy_level'}"/>
                 <filter string="Farm" name="group_farm" context="{'group_by': 'parent_farm_location_id'}"/>
-                <filter string="Parent Batch" name="group_batch" context="{'group_by': 'parent_batch_location_id'}"/>
-                <filter string="Flock Stage" name="group_stage" context="{'group_by': 'batch_stage'}"/>
             </xpath>
         </field>
     </record>
 
     <!-- Window Action -->
     <record id="action_top_farm_locations" model="ir.actions.act_window">
-        <field name="name">Farm, Batch &amp; Cage Locations</field>
+        <field name="name">Farm Infrastructure</field>
         <field name="res_model">stock.location</field>
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_location_tree_top_farm"/>
-        <field name="domain">[('farm_hierarchy_level', 'in', ('farm', 'batch', 'cage'))]</field>
-        <field name="context">{'search_default_group_farm': 1, 'search_default_group_batch': 1}</field>
+        <field name="domain">[('farm_hierarchy_level', '!=', False)]</field>
+        <field name="context">{'search_default_group_farm': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first farm facility
             </p>
             <p>
-                Build the hierarchy as Farm Facility, then Batch / Flock, then Cage Sublocations.
-                Every cage must sit under a batch.
+                Build the permanent infrastructure of each estate: the Farm Facility (with its estate code),
+                its Brooding Nurseries, and its Laying Sheds and Cages. Flocks are lots that move through them.
             </p>
         </field>
     </record>

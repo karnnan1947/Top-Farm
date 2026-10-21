@@ -4,15 +4,14 @@
         <field name="name">farm.cage.allocation.wizard.form</field>
         <field name="model">farm.cage.allocation.wizard</field>
         <field name="arch" type="xml">
-            <form string="Allocate Birds to Cages">
+            <form string="Allocate Flock to Cages">
                 <group>
                     <group>
-                        <field name="batch_location_id"/>
-                        <field name="product_id" options="{'no_create': True}"/>
-                        <field name="tracking" invisible="1"/>
+                        <field name="brooding_location_id"/>
+                        <field name="farm_location_id"/>
                         <field name="available_lot_ids" invisible="1"/>
-                        <field name="lot_id" invisible="tracking != 'lot'" required="tracking == 'lot'"
-                               options="{'no_create': True}"/>
+                        <field name="lot_id" options="{'no_create': True}"/>
+                        <field name="product_id"/>
                     </group>
                     <group>
                         <field name="available_qty"/>
@@ -21,13 +20,18 @@
                     </group>
                 </group>
                 <field name="line_ids" nolabel="1">
-                    <list editable="bottom" create="false" delete="true">
+                    <list editable="bottom" create="false" delete="true"
+                          decoration-muted="other_flock_ids">
                         <field name="cage_location_id"
-                               domain="[('parent_batch_location_id', '=', parent.batch_location_id), ('farm_hierarchy_level', '=', 'cage')]"
+                               domain="[('parent_farm_location_id', '=', parent.farm_location_id), ('farm_hierarchy_level', '=', 'cage')]"
                                options="{'no_create': True}"/>
-                        <field name="quantity" sum="Total"/>
+                        <field name="current_bird_count"/>
+                        <field name="other_flock_ids" widget="many2many_tags"/>
+                        <field name="quantity" sum="Total" readonly="other_flock_ids"/>
                     </list>
                 </field>
+                <p class="text-muted">The birds keep their flock lot in the cages and the flock moves to
+                    Rearing / Pre-Laying. A cage still holding another flock cannot receive birds.</p>
                 <footer>
                     <button name="action_allocate" string="Allocate" type="object" class="btn-primary"/>
                     <button name="action_split_equally" string="Split Equally" type="object"/>

@@ -1,39 +1,32 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo import fields, models
 
 
 class ResCompany(models.Model):
     _inherit = 'res.company'
 
-    laying_transition_mode = fields.Selection([
-        ('manual', 'Manual (Manager Button Only)'),
-        ('automatic', 'Automatic by Flock Age'),
-    ], string='Laying Transition Mode', default='manual', required=True,
-       help="Manual: a Farm Manager must click 'Start Laying Phase'.\n"
-            "Automatic: the daily check starts the Laying Phase when the flock reaches the target age. "
-            "The button stays available in both modes for an early start.")
+    farm_lot_generation_mode = fields.Selection([
+        ('manual', 'Approach A: Manual Entry'),
+        ('auto', 'Approach B: Automated Estate Lot Allocation'),
+    ], string='Flock Lot Generation Mode', default='auto', required=True,
+       help="How the flock lot is set when chicks are dispatched to a brooding nursery.\n"
+            "Manual: the warehouse clerk enters the flock lot on each transfer line before validating.\n"
+            "Automated: the system names the lot [Estate Code]-[Date] (e.g. IHL-19-10-2026) when the transfer "
+            "is validated; a lot entered on the line still takes precedence.")
+    farm_lot_date_source = fields.Selection([
+        ('arrival', 'Chick Arrival Date'),
+        ('transfer', 'Transfer Validation Date'),
+    ], string='Estate Lot Date Source', default='arrival', required=True,
+       help="Date embedded in automatically generated flock lots: the date the chicks arrived from the "
+            "hatchery at the main warehouse, or the date the dispatch to the estate is validated.")
+    farm_flock_auto_analytic = fields.Boolean(
+        string='Auto-create Flock Analytic Account', default=True,
+        help="Give every new flock lot its own analytic account in the Flock Analytic Plan.")
+    farm_flock_analytic_plan_id = fields.Many2one(
+        'account.analytic.plan', string='Flock Analytic Plan',
+        help="Plan of the flock analytic accounts. Cage analytic accounts must belong to another root plan.")
 
-    laying_start_age_weeks = fields.Float(
-        string='Laying Phase Start Age (Weeks)',
-        default=19.0,
-        digits=(16, 1),
-        help="Target age in weeks when flock is considered entering commercial egg production."
-    )
-
-    laying_notification_advance_weeks = fields.Float(
-        string='Advance Warning (Weeks Before Laying)',
-        default=1.0,
-        digits=(16, 1),
-        help="Number of weeks before the laying start age to send the point-of-lay inspection alert "
-             "to the Farm Managers."
-    )
-
-    @api.constrains('laying_start_age_weeks', 'laying_notification_advance_weeks')
-    def _check_laying_ages(self):
-        for company in self:
-            if company.laying_start_age_weeks <= 0:
-                raise ValidationError(_("The Laying Phase start age must be greater than 0 weeks."))
-            if not 0 <= company.laying_notification_advance_weeks < company.laying_start_age_weeks:
-                raise ValidationError(_(
-                    "The advance warning must be at least 0 weeks and less than the Laying Phase start age."))
+    def _get_farm_flock_plan(self):
+        self.ensure_one()
+        return self.farm_flock_analytic_plan_id or self.env.ref(
+            'top_farm_core.analytic_plan_flock_batches', raise_if_not_found=False)

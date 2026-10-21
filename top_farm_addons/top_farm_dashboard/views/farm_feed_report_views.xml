@@ -5,8 +5,8 @@
         <field name="model">farm.feed.report</field>
         <field name="arch" type="xml">
             <pivot string="Feed Consumption Analysis">
-                <field name="batch_location_id" type="row"/>
-                <field name="cage_location_id" type="row"/>
+                <field name="flock_lot_id" type="row"/>
+                <field name="location_id" type="row"/>
                 <field name="input_type" type="col"/>
                 <field name="quantity" type="measure"/>
                 <field name="cost" type="measure"/>
@@ -30,8 +30,9 @@
         <field name="arch" type="xml">
             <list string="Feed Consumption" create="false" edit="false">
                 <field name="date"/>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="location_id"/>
                 <field name="product_id"/>
                 <field name="input_type"/>
                 <field name="consumption" optional="hide"/>
@@ -46,8 +47,9 @@
         <field name="model">farm.feed.report</field>
         <field name="arch" type="xml">
             <search>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id"/>
+                <field name="location_id"/>
                 <field name="product_id"/>
                 <filter name="filter_date" string="Date" date="date"/>
                 <separator/>
@@ -56,9 +58,14 @@
                 <separator/>
                 <filter name="via_mo" string="Laying (egg production)" domain="[('consumption', '=', 'egg_mo')]"/>
                 <filter name="via_direct" string="Direct expense" domain="[('consumption', '=', 'direct')]"/>
+                <separator/>
+                <filter name="in_brooding" string="Brooding" domain="[('house_type', '=', 'brooding')]"/>
+                <filter name="in_cages" string="Cages" domain="[('house_type', '=', 'cage')]"/>
                 <group>
-                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
-                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_flock" string="Flock" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
+                    <filter name="group_location" string="Brooding / Cage" context="{'group_by': 'location_id'}"/>
+                    <filter name="group_house_type" string="House Type" context="{'group_by': 'house_type'}"/>
                     <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
                     <filter name="group_type" string="Type" context="{'group_by': 'input_type'}"/>
                     <filter name="group_day" string="Day" context="{'group_by': 'date:day'}"/>

@@ -4,13 +4,16 @@
         <field name="name">farm.profitability.report.pivot</field>
         <field name="model">farm.profitability.report</field>
         <field name="arch" type="xml">
-            <pivot string="Cage &amp; Batch Profitability">
-                <field name="batch_location_id" type="row"/>
-                <field name="cage_location_id" type="row"/>
+            <pivot string="Flock Lifetime Profitability">
+                <field name="flock_lot_id" type="row"/>
+                <field name="egg_revenue" type="measure"/>
+                <field name="bird_revenue" type="measure"/>
                 <field name="revenue" type="measure"/>
                 <field name="feed_cost" type="measure"/>
                 <field name="medication_cost" type="measure"/>
                 <field name="mortality_cost" type="measure"/>
+                <field name="bird_cost" type="measure"/>
+                <field name="other_cost" type="measure"/>
                 <field name="total_cost" type="measure"/>
                 <field name="gross_profit" type="measure"/>
                 <field name="operating_margin_pct" type="measure"/>
@@ -21,8 +24,8 @@
         <field name="name">farm.profitability.report.graph</field>
         <field name="model">farm.profitability.report</field>
         <field name="arch" type="xml">
-            <graph string="Profit by Cage" type="bar">
-                <field name="cage_location_id"/>
+            <graph string="Profit by Flock" type="bar">
+                <field name="flock_lot_id"/>
                 <field name="gross_profit" type="measure"/>
             </graph>
         </field>
@@ -33,12 +36,17 @@
         <field name="arch" type="xml">
             <list string="Profitability" create="false" edit="false" decoration-danger="low_margin">
                 <field name="date"/>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="cage_location_id" optional="show"/>
+                <field name="egg_revenue" sum="Eggs" optional="show"/>
+                <field name="bird_revenue" sum="Spent Hens" optional="show"/>
                 <field name="revenue" sum="Revenue"/>
                 <field name="feed_cost" sum="Feed"/>
                 <field name="medication_cost" sum="Medication"/>
                 <field name="mortality_cost" sum="Mortality"/>
+                <field name="bird_cost" sum="Bird Cost" optional="show"/>
+                <field name="other_cost" sum="Other" optional="show"/>
                 <field name="gross_profit" sum="Profit"/>
                 <field name="low_margin" optional="hide"/>
                 <field name="currency_id" column_invisible="1"/>
@@ -50,12 +58,14 @@
         <field name="model">farm.profitability.report</field>
         <field name="arch" type="xml">
             <search>
-                <field name="batch_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id"/>
                 <field name="cage_location_id"/>
-                <filter name="low_margin" string="Low-margin cages" domain="[('low_margin', '=', True)]"/>
+                <filter name="low_margin" string="Low-margin flocks" domain="[('low_margin', '=', True)]"/>
                 <separator/>
                 <group>
-                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
+                    <filter name="group_flock" string="Flock" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
                     <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
                     <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
                 </group>
@@ -63,7 +73,7 @@
         </field>
     </record>
     <record id="action_farm_profitability_report" model="ir.actions.act_window">
-        <field name="name">Cage &amp; Batch Profitability</field>
+        <field name="name">Flock Lifetime Profitability</field>
         <field name="res_model">farm.profitability.report</field>
         <field name="view_mode">pivot,graph,list</field>
     </record>
@@ -72,13 +82,14 @@
         <field name="name">farm.revenue.allocation.list</field>
         <field name="model">farm.revenue.allocation</field>
         <field name="arch" type="xml">
-            <list string="Egg Revenue Allocation" create="false" edit="false">
+            <list string="Flock Revenue Allocation" create="false" edit="false">
                 <field name="date"/>
-                <field name="batch_location_id"/>
+                <field name="flock_lot_id"/>
                 <field name="cage_location_id"/>
                 <field name="production_date"/>
                 <field name="grade"/>
                 <field name="eggs_sold" sum="Eggs"/>
+                <field name="birds_sold" sum="Birds" optional="show"/>
                 <field name="revenue" sum="Revenue"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
@@ -88,8 +99,8 @@
         <field name="name">farm.revenue.allocation.pivot</field>
         <field name="model">farm.revenue.allocation</field>
         <field name="arch" type="xml">
-            <pivot string="Egg Revenue Allocation">
-                <field name="batch_location_id" type="row"/>
+            <pivot string="Flock Revenue Allocation">
+                <field name="flock_lot_id" type="row"/>
                 <field name="cage_location_id" type="row"/>
                 <field name="grade" type="col"/>
                 <field name="revenue" type="measure"/>
@@ -97,7 +108,7 @@
         </field>
     </record>
     <record id="action_farm_revenue_allocation" model="ir.actions.act_window">
-        <field name="name">Egg Revenue Allocation</field>
+        <field name="name">Flock Revenue Allocation</field>
         <field name="res_model">farm.revenue.allocation</field>
         <field name="view_mode">pivot,list</field>
     </record>

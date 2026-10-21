@@ -8,7 +8,7 @@
                 <header>
                     <button name="action_resync_stock_analytics" type="object" string="Re-sync Stock Analytics"
                             groups="top_farm_core.group_farm_manager"
-                            help="Re-price the analytic lines of all done feed, medication and bird moves at their current stock value."/>
+                            help="Re-price the analytic lines of all done feed, medication and bird moves at their current stock value (moves posted in a stock valuation entry keep the posted cost)."/>
                 </header>
                 <sheet>
                     <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
@@ -21,12 +21,19 @@
                         <field name="mortality_alert_pct"/>
                         <field name="low_margin_pct"/>
                     </group>
-                    <group string="Cost Classification (profitability report)">
+                    <group string="Pre-Laying Flock Investment">
+                        <field name="currency_id" invisible="1"/>
+                        <field name="pre_laying_target_cost"/>
+                        <field name="pre_laying_target_cost_max"/>
+                    </group>
+                    <group string="Cost Classification (profitability and investment reports)">
                         <field name="feed_category_ids" widget="many2many_tags" options="{'no_create': True}"/>
                         <field name="medication_category_ids" widget="many2many_tags" options="{'no_create': True}"/>
                     </group>
-                    <p class="text-muted">Mortality loss needs no setting: every analytic cost of a product flagged
-                        as a Farm Bird counts as mortality loss.</p>
+                    <p class="text-muted">Products with a Farm Input Type are classified as Feed or Medication without
+                        any setting. Mortality loss needs no setting either: the scraps of Farm Bird products count as
+                        mortality loss. Other costs tagged to a flock's analytic account (heating, labour and other
+                        bills) are reported as Other Direct Costs.</p>
                 </sheet>
             </form>
         </field>

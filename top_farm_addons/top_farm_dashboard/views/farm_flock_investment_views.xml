@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_flock_investment_pivot" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.pivot</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Pre-Laying Flock Investment">
+                <field name="flock_lot_id" type="row"/>
+                <field name="component" type="col"/>
+                <field name="cost" type="measure"/>
+                <field name="cost_per_placed_bird" type="measure"/>
+                <field name="cost_per_bird" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_flock_investment_graph" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.graph</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="arch" type="xml">
+            <graph string="Cumulative Investment" type="line" cumulated="1">
+                <field name="date" interval="week"/>
+                <field name="cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_flock_investment_list" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.list</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="arch" type="xml">
+            <list string="Pre-Laying Flock Investment" create="false" edit="false">
+                <field name="date"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="component"/>
+                <field name="product_id"/>
+                <field name="quantity" sum="Quantity"/>
+                <field name="cost" sum="Expenditure"/>
+                <field name="cost_per_placed_bird" optional="show"/>
+                <field name="cost_per_bird" optional="show"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_flock_investment_search" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.search</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id"/>
+                <field name="product_id"/>
+                <filter name="filter_pre_laying" string="Still Accumulating"
+                        domain="[('flock_stage', 'in', ('brooding', 'rearing'))]"/>
+                <filter name="filter_locked" string="Locked (Laying or Spent)"
+                        domain="[('flock_stage', 'in', ('laying', 'spent'))]"/>
+                <separator/>
+                <filter name="filter_date" string="Date" date="date"/>
+                <group>
+                    <filter name="group_flock" string="Flock" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
+                    <filter name="group_component" string="Cost Component" context="{'group_by': 'component'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_week" string="Week" context="{'group_by': 'date:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_flock_investment_report" model="ir.actions.act_window">
+        <field name="name">Pre-Laying Flock Investment</field>
+        <field name="res_model">farm.flock.investment.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_farm_flock_investment_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No flock investment yet</p>
+            <p>The investment in a flock builds up from the chicks placed in the brooding nursery, through the
+               feed, vaccines and direct costs tagged to its analytic account, until the Laying Phase starts and
+               locks it. Group by flock to read the cost per placed bird (every chick bought) and per live bird
+               (the cost each surviving hen carries).</p>
+        </field>
+    </record>
+</odoo>

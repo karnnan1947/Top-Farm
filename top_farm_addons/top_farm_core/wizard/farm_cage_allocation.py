@@ -7,22 +7,21 @@ from odoo.exceptions import UserError
 
 class FarmCageAllocationWizard(models.TransientModel):
     _name = 'farm.cage.allocation.wizard'
-    _description = 'Allocate Birds of a Batch to its Cages'
+    _description = 'Allocate a Flock from its Brooding Nursery to Cages'
 
-    batch_location_id = fields.Many2one(
-        'stock.location', string='Flock Batch', required=True, readonly=True,
-        domain="[('farm_hierarchy_level', '=', 'batch')]")
-    company_id = fields.Many2one(related='batch_location_id.company_id')
-    product_id = fields.Many2one(
-        'product.product', string='Bird Product', required=True, domain="[('is_farm_bird', '=', True)]")
-    tracking = fields.Selection(related='product_id.tracking')
+    brooding_location_id = fields.Many2one(
+        'stock.location', string='Brooding Nursery', required=True, readonly=True,
+        domain="[('farm_hierarchy_level', '=', 'brooding')]")
+    farm_location_id = fields.Many2one(related='brooding_location_id.parent_farm_location_id', string='Farm')
+    company_id = fields.Many2one(related='brooding_location_id.company_id')
     available_lot_ids = fields.Many2many('stock.lot', compute='_compute_available_lots')
     lot_id = fields.Many2one(
-        'stock.lot', string='Batch Lot', domain="[('id', 'in', available_lot_ids)]",
-        help="The lot the birds arrived with. It is kept: no new lot is created for a cage.")
+        'stock.lot', string='Flock Lot', required=True, domain="[('id', 'in', available_lot_ids)]",
+        help="The flock lot is kept: the birds keep their flock number in the cages.")
+    product_id = fields.Many2one(related='lot_id.product_id', string='Bird Product')
     available_qty = fields.Float(
-        string='Available in the Batch Location', readonly=True, digits='Product Unit',
-        help="Free birds of this product and lot in the batch location itself (not in the cages).")
+        string='Live Birds in Brooding', compute='_compute_available_qty', digits='Product Unit',
+        help="Free birds of this flock in the brooding nursery.")
     line_ids = fields.One2many('farm.cage.allocation.wizard.line', 'wizard_id', string='Cages')
     allocated_qty = fields.Float(string='To Allocate', compute='_compute_totals', digits='Product Unit')
     remaining_qty = fields.Float(string='Remaining', compute='_compute_totals', digits='Product Unit')
@@ -32,50 +31,37 @@ class FarmCageAllocationWizard(models.TransientModel):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         context = self.env.context
-        batch = self.env['stock.location'].browse(
-            res.get('batch_location_id') or context.get('default_batch_location_id') or context.get('active_id'))
-        if batch.exists() and batch.farm_hierarchy_level == 'batch':
-            res['batch_location_id'] = batch.id
-            quants = self.env['stock.quant'].search([
-                ('location_id', '=', batch.id), ('product_id.is_farm_bird', '=', True), ('quantity', '>', 0)])
-            if len(quants.product_id) == 1:
-                res['product_id'] = quants.product_id.id
-                if len(quants.lot_id) == 1:
-                    res['lot_id'] = quants.lot_id.id
-                res['available_qty'] = self._available_for(
-                    batch, quants.product_id, quants.lot_id if len(quants.lot_id) == 1 else self.env['stock.lot'])
+        brooding = self.env['stock.location'].browse(
+            res.get('brooding_location_id') or context.get('default_brooding_location_id') or context.get('active_id'))
+        if brooding.exists() and brooding.farm_hierarchy_level == 'brooding':
+            res['brooding_location_id'] = brooding.id
+            lots = brooding._get_flock_lots()
+            if not res.get('lot_id') and len(lots) == 1:
+                res['lot_id'] = lots.id
             cages = self.env['stock.location'].search([
-                ('parent_batch_location_id', '=', batch.id), ('farm_hierarchy_level', '=', 'cage')])
+                ('parent_farm_location_id', '=', brooding.parent_farm_location_id.id),
+                ('farm_hierarchy_level', '=', 'cage')], order='complete_name')
             res['line_ids'] = [Command.create({'cage_location_id': cage.id, 'quantity': 0.0}) for cage in cages]
         return res
 
-    @api.depends('batch_location_id', 'product_id')
+    @api.depends('brooding_location_id')
     def _compute_available_lots(self):
         for wiz in self:
-            quants = self.env['stock.quant'].search([
-                ('location_id', '=', wiz.batch_location_id.id), ('product_id', '=', wiz.product_id.id),
-                ('quantity', '>', 0), ('lot_id', '!=', False)]) if wiz.batch_location_id and wiz.product_id \
-                else self.env['stock.quant']
-            wiz.available_lot_ids = quants.lot_id
+            brooding = wiz.brooding_location_id._origin
+            wiz.available_lot_ids = brooding._get_flock_lots() if brooding else False
 
-    def _available_for(self, batch, product, lot):
-        """Free quantity of the product (and lot) in the batch location itself, never in its cages."""
+    def _available_for(self, brooding, lot):
+        """Free birds of the flock in the brooding nursery itself."""
         # while the form is open the records are temporary copies (NewId): the stock query needs the real ones
-        batch, product, lot = batch._origin, product._origin, lot._origin
-        if not batch:    # while the form opens, the handlers run before the batch is set on the new record
-            batch = self.env['stock.location'].browse(self.env.context.get('default_batch_location_id'))
-        if not (batch and product):
+        brooding, lot = brooding._origin, lot._origin
+        if not (brooding and lot):
             return 0.0
-        return self.env['stock.quant']._get_available_quantity(product, batch, lot_id=lot or None, strict=True)
+        return self.env['stock.quant']._get_available_quantity(lot.product_id, brooding, lot_id=lot, strict=True)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:    # the figure is read-only on screen, so it is never sent: always recompute it
-            vals['available_qty'] = self._available_for(
-                self.env['stock.location'].browse(vals.get('batch_location_id')),
-                self.env['product.product'].browse(vals.get('product_id')),
-                self.env['stock.lot'].browse(vals.get('lot_id')))
-        return super().create(vals_list)
+    @api.depends('brooding_location_id', 'lot_id')
+    def _compute_available_qty(self):
+        for wiz in self:
+            wiz.available_qty = self._available_for(wiz.brooding_location_id, wiz.lot_id)
 
     @api.depends('line_ids.quantity', 'available_qty')
     def _compute_totals(self):
@@ -83,39 +69,32 @@ class FarmCageAllocationWizard(models.TransientModel):
             wiz.allocated_qty = sum(wiz.line_ids.mapped('quantity'))
             wiz.remaining_qty = wiz.available_qty - wiz.allocated_qty
 
-    @api.onchange('product_id')
-    def _onchange_product_id(self):
-        lots = self.available_lot_ids
-        self.lot_id = lots if len(lots) == 1 else False
-        self.available_qty = self._available_for(self.batch_location_id, self.product_id, self.lot_id)
-
-    @api.onchange('lot_id')
-    def _onchange_lot_id(self):
-        self.available_qty = self._available_for(self.batch_location_id, self.product_id, self.lot_id)
-
     # ------------------------------------------------------------------ actions
-    def action_split_equally(self):
-        """Share the available birds over the cages; the remainder goes to the first cages."""
-        self.ensure_one()
-        lines = self.line_ids
-        if not lines:
-            raise UserError(_("This batch has no cages yet. Create the cages under the batch first."))
-        total = int(self._available_for(self.batch_location_id, self.product_id, self.lot_id))
-        base, extra = divmod(total, len(lines))
-        for index, line in enumerate(lines):
-            line.quantity = base + (1 if index < extra else 0)
+    def _reopen(self):
         return {
-            'type': 'ir.actions.act_window', 'name': _("Allocate Birds to Cages"),
+            'type': 'ir.actions.act_window', 'name': _("Allocate Flock to Cages"),
             'res_model': self._name, 'res_id': self.id, 'view_mode': 'form', 'target': 'new',
         }
 
+    def action_split_equally(self):
+        """Share the birds over the free cages of the list; the remainder goes to the first cages."""
+        self.ensure_one()
+        lines = self.line_ids.filtered(lambda l: not l.other_flock_ids)
+        if not lines:
+            raise UserError(_("This farm has no free cage. Create the cages under the farm, or empty them first."))
+        total = int(self._available_for(self.brooding_location_id, self.lot_id))
+        base, extra = divmod(total, len(lines))
+        for index, line in enumerate(lines):
+            line.quantity = base + (1 if index < extra else 0)
+        return self._reopen()
+
     def action_allocate(self):
         self.ensure_one()
-        batch, product, lot = self.batch_location_id, self.product_id, self.lot_id
-        if batch.farm_hierarchy_level != 'batch':
-            raise UserError(_("Birds are allocated from a 'Batch / Flock' location."))
-        if product.tracking == 'lot' and not lot:
-            raise UserError(_("Choose the batch lot the birds arrived with."))
+        brooding, lot = self.brooding_location_id, self.lot_id
+        if brooding.farm_hierarchy_level != 'brooding':
+            raise UserError(_("Birds are allocated from a 'Brooding Nursery'."))
+        if not lot.is_flock_batch:
+            raise UserError(_("Choose the flock lot to allocate."))
         per_cage = defaultdict(float)
         for line in self.line_ids:
             if line.quantity < 0:
@@ -125,58 +104,67 @@ class FarmCageAllocationWizard(models.TransientModel):
         if not per_cage:
             raise UserError(_("Enter the number of birds for at least one cage."))
         for cage in per_cage:
-            if cage.farm_hierarchy_level != 'cage' or cage.parent_batch_location_id != batch:
-                raise UserError(_("%(cage)s is not a cage of batch %(batch)s.",
-                                  cage=cage.display_name, batch=batch.display_name))
+            if cage.farm_hierarchy_level != 'cage' or cage.parent_farm_location_id != brooding.parent_farm_location_id:
+                raise UserError(_("%(cage)s is not a cage of farm %(farm)s.",
+                                  cage=cage.display_name, farm=brooding.parent_farm_location_id.display_name))
+            # one flock per cage: egg collections and cage costs are charged to the flock living in the cage
+            other = cage._get_flock_lots() - lot
+            if other:
+                raise UserError(_("Cage %(cage)s still holds flock %(flock)s. Deplete and sanitize it first.",
+                                  cage=cage.display_name, flock=", ".join(other.mapped('name'))))
         total = sum(per_cage.values())
-        available = self._available_for(batch, product, lot)
+        product = lot.product_id
+        available = self._available_for(brooding, lot)
         if product.uom_id.compare(total, available) > 0:
             raise UserError(_(
-                "Only %(available)s birds of %(product)s are available in %(batch)s, not %(total)s.",
-                available=available, product=product.display_name, batch=batch.display_name, total=total))
-        warehouse = batch.warehouse_id or self.env['stock.warehouse'].search(
-            [('company_id', '=', batch.company_id.id)], limit=1)
+                "Only %(available)s birds of flock %(lot)s are available in %(brooding)s, not %(total)s.",
+                available=available, lot=lot.name, brooding=brooding.display_name, total=total))
+        warehouse = brooding.warehouse_id or self.env['stock.warehouse'].search(
+            [('company_id', '=', brooding.company_id.id)], limit=1)
         if not warehouse.int_type_id:
-            raise UserError(_("No internal transfer operation type found for %s.", batch.company_id.name))
-        for cage, qty in per_cage.items():
-            self._move_birds(warehouse.int_type_id, batch, cage, product, lot, qty)
-        batch.message_post(body=_(
-            "%(user)s allocated %(total)s %(product)s%(lot)s to the cages: %(detail)s.",
-            user=self.env.user.name, total=f"{total:g}", product=product.display_name,
-            lot=_(" (lot %s)", lot.name) if lot else '',
-            detail=", ".join(f"{cage.name} {qty:g}" for cage, qty in per_cage.items())),
+            raise UserError(_("No internal transfer operation type found for %s.", brooding.company_id.name))
+        picking = self._move_birds(warehouse.int_type_id, brooding, lot, per_cage)
+        lot._advance_to_rearing()
+        lot.message_post(body=_(
+            "%(user)s allocated %(total)s birds from %(brooding)s to the cages (%(picking)s): %(detail)s. "
+            "%(left)s birds remain in brooding.",
+            user=self.env.user.name, total=f"{total:g}", brooding=brooding.display_name, picking=picking.name,
+            detail=", ".join(f"{cage.name} {qty:g}" for cage, qty in per_cage.items()),
+            left=f"{available - total:g}"),
             subtype_xmlid='mail.mt_note')
         return {'type': 'ir.actions.act_window_close'}
 
-    def _move_birds(self, picking_type, batch, cage, product, lot, qty):
-        """One validated internal transfer batch location to cage, on the chosen lot only."""
+    def _move_birds(self, picking_type, brooding, lot, per_cage):
+        """One validated internal transfer from the nursery to the cages, on the flock lot only."""
+        product = lot.product_id
         picking = self.env['stock.picking'].create({
             'picking_type_id': picking_type.id,
-            'location_id': batch.id,
-            'location_dest_id': cage.id,
-            'origin': _("Allocation of %s", batch.display_name),
-            'company_id': batch.company_id.id,
+            'location_id': brooding.id,
+            'location_dest_id': brooding.parent_farm_location_id.id,
+            'origin': _("Cage allocation of %s", lot.name),
+            'company_id': brooding.company_id.id,
             'move_ids': [Command.create({
                 'product_id': product.id,
                 'uom_id': product.uom_id.id,
                 'product_uom_qty': qty,
-                'location_id': batch.id,
+                'location_id': brooding.id,
                 'location_dest_id': cage.id,
-                'company_id': batch.company_id.id,
-            })],
+                'company_id': brooding.company_id.id,
+            }) for cage, qty in per_cage.items()],
         })
         picking.action_confirm()
-        move = picking.move_ids
-        move.move_line_ids.unlink()      # never let Odoo reserve another lot of the batch
-        self.env['stock.move.line'].create({
-            'move_id': move.id, 'picking_id': picking.id, 'product_id': product.id,
-            'lot_id': lot.id if lot else False, 'quantity': qty,
-            'location_id': batch.id, 'location_dest_id': cage.id,
-        })
-        move.picked = True
+        for move in picking.move_ids:
+            move.move_line_ids.unlink()      # never let Odoo reserve another lot of the nursery
+            self.env['stock.move.line'].create({
+                'move_id': move.id, 'picking_id': picking.id, 'product_id': product.id,
+                'lot_id': lot.id, 'quantity': move.product_uom_qty,
+                'location_id': brooding.id, 'location_dest_id': move.location_dest_id.id,
+            })
+        picking.move_ids.picked = True
         picking.with_context(skip_backorder=True, skip_sms=True).button_validate()
         if picking.state != 'done':
             raise UserError(_("The transfer %s could not be validated automatically.", picking.name))
+        return picking
 
 
 class FarmCageAllocationWizardLine(models.TransientModel):
@@ -186,4 +174,13 @@ class FarmCageAllocationWizardLine(models.TransientModel):
     wizard_id = fields.Many2one('farm.cage.allocation.wizard', required=True, ondelete='cascade')
     cage_location_id = fields.Many2one(
         'stock.location', string='Cage', required=True, domain="[('farm_hierarchy_level', '=', 'cage')]")
+    current_bird_count = fields.Integer(string='Birds Now', compute='_compute_occupancy')
+    other_flock_ids = fields.Many2many('stock.lot', string='Occupied By', compute='_compute_occupancy')
     quantity = fields.Float(string='Birds', digits='Product Unit', default=0.0)
+
+    @api.depends('cage_location_id', 'wizard_id.lot_id')
+    def _compute_occupancy(self):
+        for line in self:
+            cage = line.cage_location_id._origin
+            line.current_bird_count = cage.get_live_bird_count() if cage else 0
+            line.other_flock_ids = (cage._get_flock_lots() - line.wizard_id.lot_id._origin) if cage else False

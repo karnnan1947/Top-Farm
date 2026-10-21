@@ -16,3 +16,6 @@ access_farm_feed_report_manager,farm.feed.report.manager,farm.feed.report,top_fa
 access_farm_feed_report_account,farm.feed.report.account,farm.feed.report,account.group_account_invoice,r,
 rule_farm_egg_report_company,Farm egg report: multi-company,farm.egg.report,,crud,"[('company_id', 'in', company_ids)]"
 rule_farm_feed_report_company,Farm feed report: multi-company,farm.feed.report,,crud,"[('company_id', 'in', company_ids)]"
+access_farm_flock_investment_manager,farm.flock.investment.report.manager,farm.flock.investment.report,top_farm_core.group_farm_manager,r,
+access_farm_flock_investment_account,farm.flock.investment.report.account,farm.flock.investment.report,account.group_account_invoice,r,
+rule_farm_flock_investment_company,Farm flock investment: multi-company,farm.flock.investment.report,,crud,"[('company_id', 'in', company_ids)]"

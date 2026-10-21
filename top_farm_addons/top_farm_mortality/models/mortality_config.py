@@ -11,8 +11,8 @@ class FarmMortalityConfig(models.Model):
     company_id = fields.Many2one('res.company', required=True, default=lambda s: s.env.company)
     daily_mortality_threshold_pct = fields.Float(
         string='Daily Mortality Approval Threshold (%)', default=2.0, tracking=True,
-        help="Cumulative dead birds in one cage on one day, as a percentage of the cage's opening "
-             "population, above which Farm Manager approval is mandatory.")
+        help="Cumulative dead birds of one flock in one brooding nursery or cage on one day, as a percentage of "
+             "its opening population there, above which Farm Manager approval is mandatory.")
     min_dead_count = fields.Integer(
         string='Minimum Dead Birds For Approval', default=0, tracking=True,
         help="Approval is only required when the cumulative dead count also exceeds this number. "

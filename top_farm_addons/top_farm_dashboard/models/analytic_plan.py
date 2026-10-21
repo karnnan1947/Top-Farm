@@ -4,7 +4,7 @@ from odoo import api, models, tools
 class AccountAnalyticPlan(models.Model):
     _inherit = 'account.analytic.plan'
 
-    _FARM_VIEWS = ('farm.profitability.report',)
+    _FARM_VIEWS = ('farm.profitability.report', 'farm.flock.investment.report')
 
     def _farm_rebuild_views(self):
         for name in self._FARM_VIEWS:

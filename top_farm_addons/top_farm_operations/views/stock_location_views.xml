@@ -5,8 +5,8 @@
         <field name="model">stock.location</field>
         <field name="inherit_id" ref="top_farm_core.view_location_form_top_farm"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='flock_age_weeks']" position="after">
-                <field name="farm_egg_location_id" invisible="farm_hierarchy_level != 'batch'"
+            <xpath expr="//field[@name='farm_code']" position="after">
+                <field name="farm_egg_location_id" invisible="farm_hierarchy_level != 'farm'"
                        options="{'no_create': True}"/>
             </xpath>
         </field>

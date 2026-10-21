@@ -20,7 +20,7 @@ SNAPSHOT_FIELDS = {'opening_population', 'cumulative_dead', 'mortality_pct',
 LOCKED_FIELDS = PROTECTED_FIELDS - SNAPSHOT_FIELDS
 # Fields that are frozen once the log leaves draft.
 DRAFT_ONLY_FIELDS = SNAPSHOT_FIELDS | {
-    'date', 'cage_location_id', 'bird_product_id', 'lot_id', 'dead_bird_count',
+    'date', 'location_id', 'bird_product_id', 'lot_id', 'dead_bird_count',
     'cause_of_death', 'backdate_reason', 'company_id',
 }
 
@@ -41,18 +41,22 @@ class FarmMortalityLog(models.Model):
     can_backdate = fields.Boolean(compute='_compute_ui_flags')
     is_manager = fields.Boolean(compute='_compute_ui_flags')
 
-    cage_location_id = fields.Many2one(
-        'stock.location', string='Cage Location', required=True, tracking=True,
-        domain="[('farm_hierarchy_level', '=', 'cage')]")
-    batch_location_id = fields.Many2one(
-        'stock.location', string='Flock Batch', related='cage_location_id.parent_batch_location_id',
+    location_id = fields.Many2one(
+        'stock.location', string='Brooding / Cage', required=True, tracking=True,
+        domain="[('farm_hierarchy_level', 'in', ('brooding', 'cage'))]",
+        help="Brooding nursery (chick deaths in weeks 0-4) or cage the birds died in.")
+    farm_location_id = fields.Many2one(
+        'stock.location', string='Farm', related='location_id.parent_farm_location_id',
         store=True, readonly=True)
     bird_product_id = fields.Many2one(
         'product.product', string='Bird Product', required=True, tracking=True,
         domain="[('product_tmpl_id.is_farm_bird', '=', True)]")
     product_tracking = fields.Selection(related='bird_product_id.tracking')
-    lot_id = fields.Many2one('stock.lot', string='Flock Lot', tracking=True,
-                             domain="[('product_id', '=', bird_product_id)]")
+    lot_id = fields.Many2one(
+        'stock.lot', string='Flock Lot', tracking=True,
+        domain="[('product_id', '=', bird_product_id), ('is_flock_batch', '=', True), "
+               "('quant_ids.location_id', '=?', location_id)]",
+        help="Flock of the dead birds. The scrap is charged to its analytic account.")
     dead_bird_count = fields.Integer(string='Dead Bird Count', tracking=True)
     cause_of_death = fields.Selection([
         ('disease', 'Disease / Infection'),
@@ -67,7 +71,7 @@ class FarmMortalityLog(models.Model):
     # Snapshots (preview while draft, frozen at submit)
     opening_population = fields.Integer(string='Opening Population', readonly=True)
     cumulative_dead = fields.Integer(string='Cumulative Dead Today', readonly=True)
-    mortality_pct = fields.Float(string="Today's Cage Mortality (%)", readonly=True, digits=(16, 2))
+    mortality_pct = fields.Float(string="Today's Flock Mortality (%)", readonly=True, digits=(16, 2))
     threshold_pct_used = fields.Float(string='Threshold Used (%)', readonly=True, digits=(16, 2))
     threshold_rule_used = fields.Selection(
         [('above', 'Above (>)'), ('at_or_above', 'At or above (≥)')], string='Threshold Rule Used', readonly=True,
@@ -139,18 +143,18 @@ class FarmMortalityLog(models.Model):
                 raise ValidationError(_("'%s' is not flagged as a Farm Bird product.",
                                         rec.bird_product_id.display_name))
 
-    @api.onchange('cage_location_id', 'bird_product_id', 'lot_id', 'date', 'dead_bird_count')
+    @api.onchange('location_id', 'bird_product_id', 'lot_id', 'date', 'dead_bird_count')
     def _onchange_preview(self):
-        # auto-fill product, then lot, when there is only one possible choice
-        if self.cage_location_id and not self.bird_product_id:
-            products = self._cage_quants(self.cage_location_id).product_id
+        # auto-fill product, then the flock lot, when there is only one possible choice
+        if self.location_id and not self.bird_product_id:
+            products = self._house_quants(self.location_id).product_id
             if len(products) == 1:
                 self.bird_product_id = products
-        if self.cage_location_id and self.bird_product_id:
+        if self.location_id and self.bird_product_id:
             if self.lot_id and self.lot_id.product_id != self.bird_product_id:
                 self.lot_id = False
             if not self.lot_id:
-                lots = self._cage_quants(self.cage_location_id, self.bird_product_id).lot_id
+                lots = self._house_quants(self.location_id, self.bird_product_id).lot_id.filtered('is_flock_batch')
                 if len(lots) == 1:
                     self.lot_id = lots
         self.update(self._snapshot_vals())
@@ -159,8 +163,8 @@ class FarmMortalityLog(models.Model):
     # Helpers
     # ------------------------------------------------------------------
     @api.model
-    def _cage_quants(self, cage, product=None, lot=None):
-        domain = [('location_id', 'child_of', cage.id), ('quantity', '>', 0),
+    def _house_quants(self, location, product=None, lot=None):
+        domain = [('location_id', 'child_of', location.id), ('quantity', '>', 0),
                   ('product_id.product_tmpl_id.is_farm_bird', '=', True)]
         if product:
             domain.append(('product_id', '=', product.id))
@@ -168,40 +172,37 @@ class FarmMortalityLog(models.Model):
             domain.append(('lot_id', '=', lot.id))
         return self.env['stock.quant'].search(domain)
 
-    def _live_qty(self, lot=None):
-        quants = self._cage_quants(self.cage_location_id, self.bird_product_id, lot)
+    def _live_qty(self):
+        quants = self._house_quants(self.location_id, self.bird_product_id, self.lot_id or None)
         return int(sum(quants.mapped('quantity')))
 
-    def _dead_sum(self, states, date=None, op='=', lot=None, whole_cage=False):
-        """Dead birds already logged in this cage (excluding this record). Per product unless
-        whole_cage, which is used for the cage-level population/threshold maths."""
-        domain = [('cage_location_id', '=', self.cage_location_id.id),
+    def _dead_sum(self, states, date=None, op='='):
+        """Dead birds of this flock already logged in this brooding nursery or cage (excluding this record)."""
+        domain = [('location_id', '=', self.location_id.id), ('lot_id', '=', self.lot_id.id),
+                  ('bird_product_id', '=', self.bird_product_id.id),
                   ('state', 'in', states), ('id', '!=', self._origin.id or 0)]
-        if not whole_cage:
-            domain.append(('bird_product_id', '=', self.bird_product_id.id))
         if date:
             domain.append(('date', op, date))
-        if lot:
-            domain.append(('lot_id', '=', lot.id))
         return sum(self.search(domain).mapped('dead_bird_count'))
 
     def _birds_moved_in_after(self, date):
-        """Net birds that entered the cage (and its sublocations) after the end of `date`: placements and
-        transfers in, minus transfers out and sales. Taking them off the live count gives the cage as it was on
-        that day, so a backdated log is measured on the birds really there. Mortality scraps and reversals are
-        left out: the logs count those, by incident date (their stock is posted on the day they are processed).
-        For today's logs nothing has happened after today, so this is 0."""
+        """Net birds of the flock that entered the location (and its sublocations) after the end of `date`:
+        placements, cage allocations and transfers in, minus transfers out and sales. Taking them off the live
+        count gives the flock as it was on that day, so a backdated log is measured on the birds really there.
+        Mortality scraps and reversals are left out: the logs count those, by incident date (their stock is
+        posted on the day they are processed). For today's logs nothing has happened after today, so this is 0."""
         self.ensure_one()
-        cage = self.cage_location_id
+        location = self.location_id
         tz = pytz.timezone(self.env.user.tz or self.env.context.get('tz') or 'UTC')
         boundary = tz.localize(datetime.combine(date + timedelta(days=1), time.min)).astimezone(pytz.utc)
         lines = self.env['stock.move.line'].sudo().search([
             ('state', '=', 'done'), ('date', '>=', boundary.replace(tzinfo=None)),
             ('product_id.product_tmpl_id.is_farm_bird', '=', True),
+            ('lot_id', '=', self.lot_id.id),
             ('move_id.farm_mortality_log_id', '=', False),
-            '|', ('location_id', 'child_of', cage.id), ('location_dest_id', 'child_of', cage.id),
+            '|', ('location_id', 'child_of', location.id), ('location_dest_id', 'child_of', location.id),
         ])
-        inside = f"{cage.parent_path}"
+        inside = f"{location.parent_path}"
         net = 0.0
         for line in lines:
             came_in = line.location_dest_id.parent_path.startswith(inside)
@@ -220,18 +221,18 @@ class FarmMortalityLog(models.Model):
                 'threshold_pct_used': cfg.daily_mortality_threshold_pct,
                 'min_dead_count_used': cfg.min_dead_count, 'threshold_rule_used': cfg.threshold_rule,
                 'requires_approval': False}
-        if not (self.cage_location_id and self.bird_product_id and self.date):
+        if not (self.location_id and self.bird_product_id and self.lot_id and self.date):
             return zero
-        # Cage-level maths: live birds come from top_farm_core's count, dead from all logs of the cage.
-        opening = (self.cage_location_id.get_live_bird_count()
+        # Flock-level maths: live birds of the flock in the brooding nursery or cage come from top_farm_core's
+        # count, dead from all logs of the flock there.
+        opening = (self.location_id.get_live_bird_count(self.lot_id)
                    - self._birds_moved_in_after(self.date)
-                   + self._dead_sum(['done'], self.date, '>=', whole_cage=True))
-        cumulative = (self._dead_sum(['done', 'waiting_approval'], self.date, '=', whole_cage=True)
-                      + self.dead_bird_count)
+                   + self._dead_sum(['done'], self.date, '>='))
+        cumulative = self._dead_sum(['done', 'waiting_approval'], self.date, '=') + self.dead_bird_count
         # The rule is applied to the percentage as shown (2 decimals), so the screen and the message never
         # say "2.00 % above the 2.00 % threshold".
         pct = round(cumulative / opening * 100.0, 2) if opening > 0 else 0.0
-        # No population to measure against (e.g. birds booked into the cage after the incident date only):
+        # No population to measure against (e.g. birds booked into the location after the incident date only):
         # the percentage means nothing, so the manager decides instead of letting the log through at 0 %.
         no_base = cumulative > 0 and opening <= 0
         return {
@@ -267,11 +268,12 @@ class FarmMortalityLog(models.Model):
         return _("at or above") if rule == 'at_or_above' else _("above")
 
     def _recheck_waiting_logs(self, reason):
-        """After a log of a cage-day is rejected or reversed, refresh the figures of the logs of that cage-day
+        """After a log of a flock-day is rejected or reversed, refresh the figures of the logs of that flock-day
         still waiting for approval (their snapshot counted it). The manager still decides."""
         for rec in self:
-            waiting = self.search([('cage_location_id', '=', rec.cage_location_id.id), ('date', '=', rec.date),
-                                   ('state', '=', 'waiting_approval'), ('id', '!=', rec.id)])
+            waiting = self.search([('location_id', '=', rec.location_id.id), ('lot_id', '=', rec.lot_id.id),
+                                   ('date', '=', rec.date), ('state', '=', 'waiting_approval'),
+                                   ('id', '!=', rec.id)])
             for log in waiting:
                 old_pct, old_dead = log.mortality_pct, log.cumulative_dead
                 snap = log._snapshot_vals()
@@ -286,24 +288,23 @@ class FarmMortalityLog(models.Model):
                     'reason': reason, 'log': rec.name, 'old_dead': old_dead, 'dead': snap['cumulative_dead'],
                     'old_pct': old_pct, 'pct': snap['mortality_pct'], 'verdict': verdict})
 
-    def _lock_cage(self):
+    def _lock_location(self):
         self.env.cr.execute("SELECT id FROM stock_location WHERE id = %s FOR UPDATE",
-                            (self.cage_location_id.id,))
+                            (self.location_id.id,))
 
     def _check_hard_guard(self, count_pending=True):
-        """dead <= live birds of the lot in the cage, minus other pending logs of that lot.
+        """dead <= live birds of the flock in the location, minus other pending logs of that flock.
         On approval other pending logs are not counted (each re-checks itself)."""
         self.ensure_one()
-        lot = self.lot_id or None
-        lot_live = self._live_qty(lot)
-        pending = self._dead_sum(['waiting_approval'], lot=lot) if count_pending else 0
+        lot_live = self._live_qty()
+        pending = self._dead_sum(['waiting_approval']) if count_pending else 0
         available = lot_live - pending
         if self.dead_bird_count > available:
             raise ValidationError(_(
-                "Cannot log %(dead)s dead birds. %(live)s live birds are in %(cage)s%(lot)s, "
+                "Cannot log %(dead)s dead birds. %(live)s live birds of flock %(lot)s are in %(location)s, "
                 "of which %(pending)s are already reserved by logs waiting approval.",
-                dead=self.dead_bird_count, live=lot_live, cage=self.cage_location_id.display_name,
-                lot=_(" (lot %s)", self.lot_id.name) if self.lot_id else '', pending=pending))
+                dead=self.dead_bird_count, live=lot_live, location=self.location_id.display_name,
+                lot=self.lot_id.name, pending=pending))
 
     def _check_manager(self):
         if not self.env.user.has_group(MANAGER_GROUP):
@@ -313,7 +314,7 @@ class FarmMortalityLog(models.Model):
         self.ensure_one()
         if self.dead_bird_count <= 0:
             raise UserError(_("Dead bird count must be greater than zero."))
-        if self.product_tracking == 'lot' and not self.lot_id:
+        if not self.lot_id.is_flock_batch:
             raise UserError(_("Select the flock lot of the dead birds."))
         today = fields.Date.context_today(self)
         if self.date > today:
@@ -342,7 +343,7 @@ class FarmMortalityLog(models.Model):
             if rec.state != 'draft':
                 raise UserError(_("Only draft logs can be submitted."))
             rec._check_submit_rules()
-            rec._lock_cage()
+            rec._lock_location()
             rec._check_hard_guard()
             snap = rec._snapshot_vals()
             rec_i = rec.with_context(mortality_internal=True)
@@ -363,11 +364,11 @@ class FarmMortalityLog(models.Model):
         managers = self._managers()
         # Markup keeps the bold tags; the values themselves are escaped by the % operator
         body = Markup(_(
-            "<b>Abnormal mortality:</b> %(cage)s reached <b>%(dead)s dead birds today (%(pct).2f%%)</b> "
-            "of an opening population of %(pop)s, %(rule)s the %(thr).2f%% threshold. "
+            "<b>Abnormal mortality:</b> flock %(flock)s in %(location)s reached <b>%(dead)s dead birds today "
+            "(%(pct).2f%%)</b> of an opening population of %(pop)s, %(rule)s the %(thr).2f%% threshold. "
             "Manager approval is required before stock is scrapped.")) % {
-            'rule': self._rule_words(snap['threshold_rule_used']),
-            'cage': self.cage_location_id.display_name, 'dead': snap['cumulative_dead'],
+            'rule': self._rule_words(snap['threshold_rule_used']), 'flock': self.lot_id.name,
+            'location': self.location_id.display_name, 'dead': snap['cumulative_dead'],
             'pct': snap['mortality_pct'], 'pop': snap['opening_population'], 'thr': snap['threshold_pct_used']}
         self.message_post(body=body, partner_ids=managers.partner_id.ids)
         for user in managers:
@@ -380,7 +381,7 @@ class FarmMortalityLog(models.Model):
         for rec in self:
             if rec.state != 'waiting_approval':
                 raise UserError(_("Only logs waiting for approval can be approved."))
-            rec._lock_cage()
+            rec._lock_location()
             rec._check_hard_guard(count_pending=False)
             rec_i = rec.with_context(mortality_internal=True)
             rec_i._create_and_validate_scrap()
@@ -411,7 +412,7 @@ class FarmMortalityLog(models.Model):
         for rec in self:
             if rec.state != 'done' or not rec.scrap_move_id:
                 raise UserError(_("Only scrapped logs can be reversed."))
-            rec._lock_cage()
+            rec._lock_location()
             scrap = rec.scrap_move_id
             qty = scrap.quantity
             move = self.env['stock.move'].create({
@@ -419,7 +420,7 @@ class FarmMortalityLog(models.Model):
                 'uom_id': scrap.uom_id.id,
                 'product_uom_qty': qty,
                 'location_id': scrap.location_dest_id.id,
-                'location_dest_id': rec.cage_location_id.id,
+                'location_dest_id': rec.location_id.id,
                 'origin': _("%s reversal", rec.name),
                 # a move with no picking/scrap/inventory has an empty computed reference and the
                 # journal-entry builder crashes on it; inventory_name feeds that reference
@@ -432,7 +433,7 @@ class FarmMortalityLog(models.Model):
                     'uom_id': scrap.uom_id.id,
                     'quantity': qty,
                     'location_id': scrap.location_dest_id.id,
-                    'location_dest_id': rec.cage_location_id.id,
+                    'location_dest_id': rec.location_id.id,
                     'lot_id': rec.lot_id.id,
                 })],
             })
@@ -448,19 +449,22 @@ class FarmMortalityLog(models.Model):
         location = self._get_scrap_location()
         if not location:
             raise UserError(_("No scrap location (usage 'Inventory adjustment') is configured."))
-        # Odoo 20 has no stock.scrap document: a scrap is a stock move flagged is_scrap
+        # Odoo 20 has no stock.scrap document: a scrap is a stock move flagged is_scrap. The flock and its
+        # location are stamped on it, so top_farm_core charges the loss to the Flock (and Cage) account.
         move = self.env['stock.move'].create({
             'product_id': self.bird_product_id.id,
             'uom_id': self.bird_product_id.uom_id.id,
             'product_uom_qty': self.dead_bird_count,
             'quantity': self.dead_bird_count,
-            'location_id': self.cage_location_id.id,
+            'location_id': self.location_id.id,
             'location_dest_id': location.id,
             'lot_ids': [(6, 0, self.lot_id.ids)],
             'is_scrap': True,
             'origin': self.name,
             'company_id': self.company_id.id,
             'farm_mortality_log_id': self.id,
+            'farm_location_id': self.location_id.id,
+            'farm_flock_lot_id': self.lot_id.id,
         })
         if not move.check_available_qty():
             raise UserError(_("The stock scrap could not be completed (insufficient stock)."))

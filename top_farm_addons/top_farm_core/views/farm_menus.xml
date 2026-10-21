@@ -7,6 +7,18 @@
               groups="top_farm_core.group_farm_user"
               sequence="25"/>
 
+    <!-- Flocks -->
+    <menuitem id="menu_top_farm_flocks"
+              name="Flocks"
+              parent="menu_top_farm_root"
+              sequence="5"/>
+
+    <menuitem id="menu_top_farm_flock_lots"
+              name="Flock Batches"
+              parent="menu_top_farm_flocks"
+              action="action_farm_flock_lots"
+              sequence="10"/>
+
     <!-- Farm Configuration Sub-menu -->
     <menuitem id="menu_top_farm_config"
               name="Farm Configuration"
@@ -15,7 +27,7 @@
 
     <!-- Farm Locations Action Menu -->
     <menuitem id="menu_top_farm_locations"
-              name="Farm, Batch &amp; Cage Hierarchy"
+              name="Farm Infrastructure"
               parent="menu_top_farm_config"
               action="action_top_farm_locations"
               sequence="10"/>

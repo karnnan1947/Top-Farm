@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Flock batch fields on the standard lot form (hatchery and egg lots keep the plain form) -->
+    <record id="view_production_lot_form_top_farm" model="ir.ui.view">
+        <field name="name">stock.lot.form.top_farm</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header invisible="not is_flock_batch">
+                    <button name="action_allocate_to_cages" string="Allocate to Cages" type="object"
+                            class="oe_highlight" invisible="flock_stage != 'brooding'"
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_move_to_rearing" string="End Brooding" type="object"
+                            invisible="flock_stage != 'brooding'"
+                            confirm="Move this flock to Rearing / Pre-Laying without a cage allocation?"
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_start_laying_phase" string="Start Laying Phase" type="object"
+                            class="oe_highlight" invisible="flock_stage != 'rearing'"
+                            confirm="Start the Laying Phase? The pre-laying investment of the flock is locked and its daily feed becomes a component of the eggs."
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_mark_spent" string="Mark as Spent" type="object"
+                            invisible="flock_stage != 'laying'"
+                            confirm="Mark this flock as Spent / Depleted?"
+                            groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_back_to_rearing" string="Back to Rearing" type="object"
+                            invisible="flock_stage != 'laying'"
+                            confirm="Move this flock back to Rearing / Pre-Laying? New feed logs will be expensed at once instead of staged."
+                            groups="top_farm_core.group_farm_manager"/>
+                    <field name="flock_stage" widget="statusbar" statusbar_visible="brooding,rearing,laying,spent"/>
+                </header>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_live_birds" type="object" class="oe_stat_button" icon="favorite"
+                        invisible="not is_flock_batch" groups="top_farm_core.group_farm_user">
+                    <field name="live_bird_count" widget="statinfo" string="Live Birds"/>
+                </button>
+            </xpath>
+            <xpath expr="//group[@name='main_group']" position="after">
+                <field name="is_farm_bird" invisible="1"/>
+                <group name="flock_group" string="Flock Batch" invisible="not is_farm_bird"
+                       groups="top_farm_core.group_farm_user">
+                    <group>
+                        <field name="is_flock_batch"/>
+                        <field name="farm_location_id" invisible="not is_flock_batch" options="{'no_create': True}"/>
+                        <field name="farm_arrival_date"/>
+                        <field name="flock_age_weeks" invisible="not farm_arrival_date"/>
+                        <field name="flock_analytic_account_id" invisible="not is_flock_batch"
+                               groups="analytic.group_analytic_accounting"/>
+                        <field name="farm_source_lot_id" invisible="not farm_source_lot_id"/>
+                    </group>
+                    <group invisible="not is_flock_batch">
+                        <field name="initial_bird_count"/>
+                        <field name="live_bird_count"/>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="chick_cost"/>
+                        <field name="flock_location_ids" widget="many2many_tags"/>
+                        <field name="cage_allocation_date" invisible="not cage_allocation_date"/>
+                        <field name="laying_start_date" invisible="not laying_start_date"/>
+                        <field name="laying_start_bird_count" invisible="not laying_start_date"/>
+                        <field name="depletion_date" invisible="not depletion_date"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_farm_flock_lot_list" model="ir.ui.view">
+        <field name="name">stock.lot.list.top_farm.flock</field>
+        <field name="model">stock.lot</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <list string="Flock Batches" create="false">
+                <field name="name" decoration-bf="1"/>
+                <field name="farm_location_id"/>
+                <field name="product_id" optional="show"/>
+                <field name="flock_stage" widget="badge"
+                       decoration-warning="flock_stage == 'brooding'"
+                       decoration-primary="flock_stage == 'rearing'"
+                       decoration-success="flock_stage == 'laying'"
+                       decoration-muted="flock_stage == 'spent'"/>
+                <field name="farm_arrival_date"/>
+                <field name="flock_age_weeks"/>
+                <field name="initial_bird_count" optional="show"/>
+                <field name="live_bird_count"/>
+                <field name="flock_location_ids" widget="many2many_tags" optional="show"/>
+                <field name="flock_analytic_account_id" optional="hide" groups="analytic.group_analytic_accounting"/>
+                <field name="activity_ids" widget="list_activity" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="search_product_lot_filter_top_farm" model="ir.ui.view">
+        <field name="name">stock.lot.search.top_farm</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.search_product_lot_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_id']" position="after">
+                <field name="farm_location_id"/>
+            </xpath>
+            <xpath expr="//filter[@name='on_hand']" position="after">
+                <separator/>
+                <filter string="Flock Batches" name="filter_flock" domain="[('is_flock_batch', '=', True)]"/>
+                <separator/>
+                <filter string="Active Flocks" name="filter_flock_active" domain="[('flock_stage', 'in', ('brooding', 'rearing', 'laying'))]"/>
+                <filter string="Brooding" name="filter_brooding" domain="[('flock_stage', '=', 'brooding')]"/>
+                <filter string="Rearing / Pre-Laying" name="filter_rearing" domain="[('flock_stage', '=', 'rearing')]"/>
+                <filter string="Laying" name="filter_laying" domain="[('flock_stage', '=', 'laying')]"/>
+                <filter string="Spent" name="filter_spent" domain="[('flock_stage', '=', 'spent')]"/>
+            </xpath>
+            <xpath expr="//filter[@name='group_by_product']" position="before">
+                <filter name="group_by_farm" string="Farm Estate" context="{'group_by': 'farm_location_id'}"/>
+                <filter name="group_by_flock_stage" string="Flock Stage" context="{'group_by': 'flock_stage'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_farm_flock_lots" model="ir.actions.act_window">
+        <field name="name">Flock Batches</field>
+        <field name="res_model">stock.lot</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_farm_flock_lot_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_production_lot_form')})]"/>
+        <field name="search_view_id" ref="stock.search_product_lot_filter"/>
+        <field name="domain">[('is_flock_batch', '=', True)]</field>
+        <field name="context">{'search_default_filter_flock_active': 1, 'default_is_flock_batch': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No flock yet</p>
+            <p>A flock lot is created when day-old chicks are dispatched from the main warehouse to an
+               estate's brooding nursery: entered by the clerk, or generated as [Estate Code]-[Date].</p>
+        </field>
+    </record>
+</odoo>

@@ -20,18 +20,21 @@ class FarmEggCollection(models.Model):
     date = fields.Date(string='Collection Date', required=True, default=fields.Date.context_today, tracking=True)
     cage_location_id = fields.Many2one(
         'stock.location', string='Cage Location', required=True, tracking=True, check_company=True, index=True,
-        domain="[('farm_hierarchy_level', '=', 'cage'), ('parent_batch_location_id', '=?', batch_location_id)]"
+        domain="[('farm_hierarchy_level', '=', 'cage'), ('quant_ids.lot_id', '=?', flock_lot_id)]"
     )
-    batch_location_id = fields.Many2one(
-        'stock.location', string='Flock Batch', tracking=True, check_company=True, index=True,
-        compute='_compute_batch_location', store=True, readonly=False, precompute=True,
-        domain="[('farm_hierarchy_level', '=', 'batch')]"
+    flock_lot_id = fields.Many2one(
+        'stock.lot', string='Flock Lot', required=True, tracking=True, index=True,
+        compute='_compute_flock_lot', store=True, readonly=False, precompute=True,
+        domain="[('is_flock_batch', '=', True), ('flock_stage', 'in', ('rearing', 'laying'))]",
+        help="Flock living in the cage. The eggs are lotted under it and their revenue is reported to it."
     )
+    farm_location_id = fields.Many2one(
+        related='cage_location_id.parent_farm_location_id', string='Farm', store=True, index=True)
     destination_location_id = fields.Many2one(
         'stock.location', string='Egg Warehouse Location', required=True, check_company=True,
         compute='_compute_destination_location', store=True, readonly=False, precompute=True,
         domain="[('usage', '=', 'internal')]",
-        help="Warehouse cold-room destination for graded eggs: the batch's Egg Store Location, "
+        help="Warehouse cold-room destination for graded eggs: the farm's Egg Store Location, "
              "else the company default from the Top Farm settings."
     )
 
@@ -56,7 +59,8 @@ class FarmEggCollection(models.Model):
 
     confirmed_live_bird_count = fields.Integer(
         string='Live Birds Snapshot', readonly=True, copy=False,
-        help="Permanent snapshot of live birds at collection time to ensure historical Hen-Day accuracy."
+        help="Permanent snapshot of the flock's live birds in the cage at collection time, for historical "
+             "Hen-Day accuracy."
     )
     hen_day_rate = fields.Float(
         string='Hen-Day Rate (%)', compute='_compute_kpis', store=True, digits=(16, 2), aggregator='avg',
@@ -65,7 +69,7 @@ class FarmEggCollection(models.Model):
     feed_log_ids = fields.Many2many(
         'farm.feed.log', string='Staged Feed Logs', copy=False, check_company=True,
         compute='_compute_feed_log_ids', store=True, readonly=False,
-        domain="[('state', '=', 'confirmed'), ('feeding_phase', '=', 'laying'), ('cage_location_id', '=', cage_location_id)]",
+        domain="[('state', '=', 'confirmed'), ('feeding_phase', '=', 'laying'), ('location_id', '=', cage_location_id)]",
         help="Laying-phase feed staged for this cage. Filled with the cage's feed logs of the same day."
     )
     feed_consumed_qty = fields.Float(
@@ -100,19 +104,16 @@ class FarmEggCollection(models.Model):
         return super().unlink()
 
     @api.depends('cage_location_id')
-    def _compute_batch_location(self):
+    def _compute_flock_lot(self):
         for rec in self:
-            rec.batch_location_id = rec.cage_location_id.parent_batch_location_id or rec.batch_location_id
+            cage = rec.cage_location_id._origin
+            flocks = cage._get_flock_lots() if cage else self.env['stock.lot']
+            rec.flock_lot_id = flocks if len(flocks) == 1 else rec.flock_lot_id
 
-    @api.onchange('batch_location_id')
-    def _onchange_batch_location_id(self):
-        if self.cage_location_id and self.cage_location_id.parent_batch_location_id != self.batch_location_id:
-            self.cage_location_id = False
-
-    @api.depends('batch_location_id.farm_egg_location_id')
+    @api.depends('cage_location_id.parent_farm_location_id.farm_egg_location_id')
     def _compute_destination_location(self):
         for rec in self:
-            rec.destination_location_id = (rec.batch_location_id.farm_egg_location_id
+            rec.destination_location_id = (rec.cage_location_id.parent_farm_location_id.farm_egg_location_id
                                            or rec.company_id.farm_egg_location_id
                                            or rec.destination_location_id)
 
@@ -159,13 +160,11 @@ class FarmEggCollection(models.Model):
             if min(rec.qty_medium, rec.qty_large, rec.qty_jumbo, rec.qty_damage) < 0:
                 raise ValidationError(_("Egg quantities cannot be negative."))
 
-    @api.constrains('cage_location_id', 'batch_location_id', 'date', 'state')
+    @api.constrains('cage_location_id', 'flock_lot_id', 'date', 'state')
     def _check_one_collection_per_cage_and_day(self):
         for rec in self:
-            if rec.cage_location_id.parent_batch_location_id != rec.batch_location_id:
-                raise ValidationError(_("Cage %(cage)s does not belong to batch %(batch)s.",
-                                        cage=rec.cage_location_id.display_name,
-                                        batch=rec.batch_location_id.display_name))
+            if not rec.flock_lot_id.is_flock_batch:
+                raise ValidationError(_("%s is not a flock lot.", rec.flock_lot_id.display_name))
             if rec.state != 'cancelled' and self.search_count([
                 ('id', '!=', rec.id), ('cage_location_id', '=', rec.cage_location_id.id),
                 ('date', '=', rec.date), ('state', '!=', 'cancelled'),
@@ -178,7 +177,7 @@ class FarmEggCollection(models.Model):
         if not self.cage_location_id or not self.date:
             return self.env['farm.feed.log']
         return self.env['farm.feed.log'].search([
-            ('cage_location_id', '=', self.cage_location_id.id),
+            ('location_id', '=', self.cage_location_id.id),
             ('date', '=', self.date),
             ('state', '=', 'confirmed'),
             ('feeding_phase', '=', 'laying'),
@@ -240,16 +239,20 @@ class FarmEggCollection(models.Model):
         return allocation
 
     def _get_egg_lot(self, product):
-        """Daily lot per batch: LOT-EGG-<batch>-<YYYYMMDD>, shared by all cages of the batch."""
+        """Daily lot per flock: LOT-EGG-<flock lot>-<YYYYMMDD>, shared by all cages of the flock and stamped with
+        its parent flock and production day (used for traceability and revenue reporting)."""
         self.ensure_one()
         if product.tracking == 'none':
             return self.env['stock.lot']
-        batch_code = re.sub(r'[^A-Za-z0-9]+', '-', self.batch_location_id.name).strip('-')
-        name = f"LOT-EGG-{batch_code}-{self.date.strftime('%Y%m%d')}"
+        flock_code = re.sub(r'[^A-Za-z0-9]+', '-', self.flock_lot_id.name).strip('-')
+        name = f"LOT-EGG-{flock_code}-{self.date.strftime('%Y%m%d')}"
         Lot = self.env['stock.lot'].sudo()
-        return Lot.search([('product_id', '=', product.id), ('name', '=', name),
-                           ('company_id', '=', self.company_id.id)], limit=1) \
+        lot = Lot.search([('product_id', '=', product.id), ('name', '=', name),
+                          ('company_id', '=', self.company_id.id)], limit=1) \
             or Lot.create({'product_id': product.id, 'name': name, 'company_id': self.company_id.id})
+        if not lot.farm_flock_lot_id:
+            lot.write({'farm_flock_lot_id': self.flock_lot_id.id, 'farm_production_date': self.date})
+        return lot
 
     def action_generate_split_manufacturing_orders(self):
         self.ensure_one()
@@ -257,20 +260,28 @@ class FarmEggCollection(models.Model):
             raise UserError(_("This egg collection has already been processed."))
         if self.total_egg_qty <= 0:
             raise UserError(_("Cannot generate manufacturing orders for 0 eggs."))
+        flock, cage = self.flock_lot_id, self.cage_location_id
+        live_birds = cage.get_live_bird_count(flock)
+        if not live_birds:
+            raise UserError(_("Flock %(flock)s has no live birds in %(cage)s.", flock=flock.name, cage=cage.display_name))
+        laying = flock.flock_stage == 'laying'
         self.feed_log_ids |= self._find_staged_feed_logs()
-        if not self.feed_log_ids or self.feed_consumed_qty <= 0:
+        if laying and (not self.feed_log_ids or self.feed_consumed_qty <= 0):
             raise UserError(_("No staged laying feed for %(cage)s on %(date)s. Log and confirm the day's feed "
-                              "(Farm Operations > Daily Feed & Medication) first; feed is only staged once the "
-                              "flock is in the Laying Phase.", cage=self.cage_location_id.display_name, date=self.date))
+                              "(Farm Operations > Daily Feed & Medication) first.",
+                              cage=cage.display_name, date=self.date))
         if any(log.state != 'confirmed' for log in self.feed_log_ids):
             raise UserError(_("Some linked feed logs are no longer staged; refresh the Staged Feed Logs tab."))
 
         grades = self._get_grades()
-        allocation = self._allocate_feed(grades)
-        self.feed_log_ids[:1]._check_availability(self.feed_log_ids.line_ids.filtered(lambda l: not l.is_medication))
-        self.confirmed_live_bird_count = self.cage_location_id.get_live_bird_count()
+        # Before the Laying Phase the feed is a direct expense of the flock: the first eggs carry no feed cost
+        allocation = self._allocate_feed(grades) if self.feed_log_ids else [[] for __ in grades]
+        feed_lines = self.feed_log_ids.line_ids.filtered(lambda l: not l.is_medication)
+        if feed_lines:
+            self.feed_log_ids[:1]._check_availability(feed_lines)
+        self.confirmed_live_bird_count = live_birds
 
-        warehouse = self.cage_location_id.warehouse_id or self.env['stock.warehouse'].search(
+        warehouse = cage.warehouse_id or self.env['stock.warehouse'].search(
             [('company_id', '=', self.company_id.id)], limit=1)
         # Operators record collections but are not Manufacturing users: the orders are generated
         # by the system from the data validated above.
@@ -294,7 +305,8 @@ class FarmEggCollection(models.Model):
                     'uom_id': feed.uom_id.id,
                     'product_uom_qty': feed_qty,
                     'location_id': source.id,
-                    'farm_cage_location_id': self.cage_location_id.id,
+                    'farm_location_id': cage.id,
+                    'farm_flock_lot_id': flock.id,
                 }) for feed, source, feed_qty in components],
             })
             production.action_confirm()
@@ -308,8 +320,14 @@ class FarmEggCollection(models.Model):
 
         self.state = 'done'
         self.feed_log_ids.write({'state': 'reconciled', 'egg_collection_id': self.id})
-        self.message_post(body=_(
-            "Successfully generated and completed %(count)s graded Manufacturing Orders. Total feed consumed: %(qty)s kg.",
-            count=len(productions), qty=self.feed_consumed_qty,
-        ))
+        if laying:
+            body = _("Successfully generated and completed %(count)s graded Manufacturing Orders. "
+                     "Total feed consumed: %(qty)s kg.", count=len(productions), qty=self.feed_consumed_qty)
+        else:
+            body = _("Successfully generated and completed %(count)s graded Manufacturing Orders. The flock is "
+                     "still in Rearing / Pre-Laying: its feed is a direct flock expense, so these eggs carry no "
+                     "feed cost.", count=len(productions))
+        self.message_post(body=body)
+        if not laying:
+            flock._farm_check_laying_transition(self.date)
         return True

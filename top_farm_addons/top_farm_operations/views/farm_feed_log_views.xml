@@ -16,7 +16,7 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_pickings" type="object" class="oe_stat_button" icon="fa-truck"
+                        <button name="action_view_pickings" type="object" class="oe_stat_button" icon="local_shipping"
                                 invisible="not picking_count">
                             <field name="picking_count" widget="statinfo" string="Transfers"/>
                         </button>
@@ -27,8 +27,9 @@
                     <group>
                         <group>
                             <field name="date" readonly="state != 'draft'"/>
-                            <field name="batch_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
-                            <field name="cage_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="flock_lot_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="farm_location_id"/>
                         </group>
                         <group>
                             <field name="feeding_phase"/>
@@ -65,8 +66,9 @@
             <list string="Daily Feed &amp; Medication">
                 <field name="name"/>
                 <field name="date"/>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="location_id"/>
                 <field name="feeding_phase" widget="badge"
                        decoration-info="feeding_phase == 'pre_laying'" decoration-success="feeding_phase == 'laying'"/>
                 <field name="total_feed_qty" sum="Total Feed"/>
@@ -85,20 +87,25 @@
         <field name="arch" type="xml">
             <search string="Daily Feed &amp; Medication">
                 <field name="name"/>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="farm_location_id"/>
+                <field name="location_id"/>
                 <field name="line_ids" string="Product" filter_domain="[('line_ids.product_id', 'ilike', self)]"/>
                 <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
                 <filter string="Staged for Egg Harvest" name="filter_staged" domain="[('state', '=', 'confirmed')]"/>
                 <filter string="Reconciled" name="filter_reconciled" domain="[('state', '=', 'reconciled')]"/>
+                <separator/>
+                <filter string="Brooding" name="filter_brooding" domain="[('location_id.farm_hierarchy_level', '=', 'brooding')]"/>
+                <filter string="Cages" name="filter_cages" domain="[('location_id.farm_hierarchy_level', '=', 'cage')]"/>
                 <separator/>
                 <filter string="Pre-Laying" name="filter_pre_laying" domain="[('feeding_phase', '=', 'pre_laying')]"/>
                 <filter string="Laying Phase" name="filter_laying" domain="[('feeding_phase', '=', 'laying')]"/>
                 <separator/>
                 <filter string="Feeding Date" name="filter_date" date="date"/>
                 <group>
-                    <filter string="Batch" name="group_batch" context="{'group_by': 'batch_location_id'}"/>
-                    <filter string="Cage" name="group_cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter string="Flock" name="group_flock" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter string="Farm" name="group_farm" context="{'group_by': 'farm_location_id'}"/>
+                    <filter string="Brooding / Cage" name="group_location" context="{'group_by': 'location_id'}"/>
                     <filter string="Feeding Date" name="group_date" context="{'group_by': 'date:day'}"/>
                     <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
                 </group>
@@ -113,8 +120,9 @@
         <field name="search_view_id" ref="view_farm_feed_log_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Log today's feeding</p>
-            <p>Record the feed and medication given to each cage. Pre-laying feed and all medication are
-               expensed at once; laying feed is staged until the day's egg collection consumes it.</p>
+            <p>Record the feed and medication given to a flock in its brooding nursery or cage. Brooding and
+               pre-laying feed and all medication are expensed to the flock at once; laying feed is staged until
+               the day's egg collection consumes it.</p>
         </field>
     </record>
 </odoo>

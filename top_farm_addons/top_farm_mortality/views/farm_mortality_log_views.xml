@@ -14,13 +14,13 @@
                             invisible="state != 'waiting_approval' or not is_manager"/>
                     <button name="action_open_reverse" string="Reverse" type="object"
                             invisible="state != 'done' or not is_manager"
-                            confirm="Birds will be returned to the cage. Continue?"/>
+                            confirm="Birds will be returned to the brooding nursery or cage. Continue?"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,waiting_approval,done"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_scrap" type="object" class="oe_stat_button"
-                                icon="fa-trash" invisible="not scrap_move_id">
+                                icon="delete" invisible="not scrap_move_id">
                             <div class="o_stat_info"><span class="o_stat_text">Stock Scrap</span></div>
                         </button>
                     </div>
@@ -30,18 +30,18 @@
                     <field name="is_backdated" invisible="1"/>
                     <field name="product_tracking" invisible="1"/>
                     <group>
-                        <group string="Flock &amp; Cage">
+                        <group string="Flock &amp; Location">
                             <field name="date" readonly="state != 'draft' or not can_backdate"/>
                             <field name="backdate_reason" invisible="not is_backdated"
                                    required="is_backdated" readonly="state != 'draft'"/>
-                            <field name="cage_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
-                            <field name="batch_location_id"/>
+                            <field name="location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="farm_location_id"/>
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                         </group>
                         <group string="Loss Details">
                             <field name="bird_product_id" readonly="state != 'draft'" options="{'no_create': True}"/>
                             <field name="lot_id" readonly="state != 'draft'" options="{'no_create': True}"
-                                   required="product_tracking == 'lot'" invisible="product_tracking == 'none'"/>
+                                   required="1"/>
                             <field name="dead_bird_count" readonly="state != 'draft'"/>
                             <field name="cause_of_death" readonly="state != 'draft'"/>
                         </group>
@@ -85,8 +85,9 @@
                   decoration-muted="state in ('rejected', 'reversed')">
                 <field name="name"/>
                 <field name="date"/>
-                <field name="batch_location_id"/>
-                <field name="cage_location_id"/>
+                <field name="lot_id"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="location_id"/>
                 <field name="dead_bird_count" sum="Total Dead"/>
                 <field name="mortality_pct"/>
                 <field name="cause_of_death"/>
@@ -103,16 +104,21 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <field name="cage_location_id"/>
-                <field name="batch_location_id"/>
+                <field name="lot_id"/>
+                <field name="location_id"/>
+                <field name="farm_location_id"/>
                 <filter name="waiting" string="Waiting Approval" domain="[('state', '=', 'waiting_approval')]"/>
                 <filter name="done" string="Scrapped" domain="[('state', '=', 'done')]"/>
                 <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
                 <separator/>
                 <filter name="today" string="Today" domain="[('date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter name="brooding" string="Brooding" domain="[('location_id.farm_hierarchy_level', '=', 'brooding')]"/>
+                <filter name="cages" string="Cages" domain="[('location_id.farm_hierarchy_level', '=', 'cage')]"/>
                 <group>
-                    <filter name="group_batch" string="Batch" context="{'group_by': 'batch_location_id'}"/>
-                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_flock" string="Flock" context="{'group_by': 'lot_id'}"/>
+                    <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
+                    <filter name="group_location" string="Brooding / Cage" context="{'group_by': 'location_id'}"/>
                     <filter name="group_cause" string="Cause" context="{'group_by': 'cause_of_death'}"/>
                     <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
                     <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
@@ -126,8 +132,8 @@
         <field name="model">farm.mortality.log</field>
         <field name="arch" type="xml">
             <pivot string="Mortality Analysis">
-                <field name="batch_location_id" type="row"/>
-                <field name="cage_location_id" type="row"/>
+                <field name="lot_id" type="row"/>
+                <field name="location_id" type="row"/>
                 <field name="cause_of_death" type="col"/>
                 <field name="dead_bird_count" type="measure"/>
             </pivot>

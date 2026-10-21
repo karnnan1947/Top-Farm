@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!-- Scheduled by the daily flock check; closed when the Laying Phase starts -->
+        <!-- Scheduled on the flock lot when it is ready for the Laying Phase; closed when the Laying Phase starts -->
         <record id="mail_activity_type_point_of_lay" model="mail.activity.type">
-            <field name="name">Point-of-Lay Inspection</field>
-            <field name="summary">Flock point-of-lay maturity inspection</field>
+            <field name="name">Point-of-Lay Review</field>
+            <field name="summary">Flock ready for the Laying Phase</field>
             <field name="icon">fa-search</field>
-            <field name="res_model">stock.location</field>
+            <field name="res_model">stock.lot</field>
             <field name="category">default</field>
         </record>
     </data>

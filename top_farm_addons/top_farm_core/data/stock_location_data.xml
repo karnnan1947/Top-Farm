@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Odoo moves a lot unchanged from source to destination: chicks dispatched to a brooding nursery
+             under their hatchery lot are re-lotted to their flock lot through this location. Leave it
+             without a valuation account: the out and in moves have the same value and post nothing. -->
+        <record id="location_flock_lot_conversion" model="stock.location">
+            <field name="name">Flock Lot Conversion</field>
+            <field name="usage">inventory</field>
+        </record>
+    </data>
+</odoo>

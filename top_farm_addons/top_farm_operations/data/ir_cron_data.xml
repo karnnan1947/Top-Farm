@@ -14,5 +14,19 @@
             <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 00:30:00')"/>
             <field name="active" eval="True"/>
         </record>
+
+        <!-- Checks the rolling hen-day rate of the rearing flocks on the complete days up to yesterday:
+             alerts the Farm Managers, or starts the Laying Phase in automatic mode. -->
+        <record id="cron_check_laying_transition" model="ir.cron">
+            <field name="name">Top Farm: Flock Laying Transition Check (Hen-Day Benchmark)</field>
+            <field name="model_id" ref="stock.model_stock_lot"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_check_laying_transition()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 00:45:00')"/>
+            <field name="active" eval="True"/>
+        </record>
     </data>
 </odoo>

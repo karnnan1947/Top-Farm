@@ -1,13 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Pre-Laying Flock Investment Report on the flock form -->
     <record id="view_production_lot_form_farm_dashboard" model="ir.ui.view">
         <field name="name">stock.lot.form.farm.dashboard</field>
         <field name="model">stock.lot</field>
-        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="inherit_id" ref="top_farm_core.view_production_lot_form_top_farm"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='product_id']" position="after">
-                <field name="farm_batch_location_id" invisible="not farm_batch_location_id"/>
-                <field name="farm_production_date" invisible="not farm_production_date"/>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_investment_report" type="object" class="oe_stat_button" icon="payments"
+                        invisible="not is_flock_batch"
+                        groups="top_farm_core.group_farm_manager,account.group_account_invoice">
+                    <field name="investment_cost_per_bird" widget="statinfo" string="Invested / Bird"/>
+                </button>
+            </xpath>
+            <xpath expr="//group[@name='flock_group']" position="after">
+                <group name="flock_investment" string="Pre-Laying Flock Investment"
+                       invisible="not is_flock_batch"
+                       groups="top_farm_core.group_farm_manager,account.group_account_invoice">
+                    <field name="investment_summary" nolabel="1" colspan="2" readonly="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_farm_flock_lot_list_dashboard" model="ir.ui.view">
+        <field name="name">stock.lot.list.top_farm.flock.dashboard</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="top_farm_core.view_farm_flock_lot_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='live_bird_count']" position="after">
+                <field name="currency_id" column_invisible="1"/>
+                <field name="investment_cost_per_placed_bird" optional="hide"
+                       groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+                <field name="investment_cost_per_bird" optional="hide"
+                       groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
             </xpath>
         </field>
     </record>

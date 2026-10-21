@@ -19,7 +19,8 @@ class ProductProduct(models.Model):
         """Bring the analytic lines of the done moves of these products back to the moves' current value.
         Existing lines are updated in place (no reversal, no duplicate). Only moves that still resolve to a
         distribution are touched: a move whose tagging module is not loaded (e.g. during an upgrade) keeps its
-        lines instead of losing them."""
+        lines instead of losing them. A move whose valuation entry carries the distribution keeps the entry's
+        analytic lines, i.e. the posted cost."""
         domain = [('product_id', 'in', self.ids), ('state', '=', 'done')]
         if from_date and from_date != datetime.min:
             domain.append(('date', '>=', from_date))
