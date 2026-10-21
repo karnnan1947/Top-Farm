@@ -11,9 +11,7 @@ __pycache__/
 *.log
 Top_Farm_Flock_Workflow_Test_Report/
 Module1_Test_Report/
-Top_Farm_*_Implementation_Plan.md
-Top_Farm_Complete_Architecture_and_4_Workflows.md
-Top_Farm_Revised_Workflow_Implementation_Plan.md
+Top_Farm_*.md
 
 # Office lock files and OS clutter
 ~$*
