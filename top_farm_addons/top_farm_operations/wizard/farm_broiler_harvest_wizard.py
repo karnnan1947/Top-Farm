@@ -8,7 +8,7 @@ from odoo.tools import format_amount, formatLang
 
 class FarmBroilerHarvestWizard(models.TransientModel):
     _name = 'farm.broiler.harvest.wizard'
-    _description = 'Partial Broiler Harvest & Meat Conversion Wizard'
+    _description = 'Broiler Harvest & Meat Conversion Wizard'
 
     flock_lot_id = fields.Many2one(
         'stock.lot', string='Broiler Batch', required=True, readonly=True,
@@ -29,23 +29,24 @@ class FarmBroilerHarvestWizard(models.TransientModel):
     total_weight_kg = fields.Float(
         string='Total Net Weight (kg)', digits=(16, 2), compute='_compute_total_weight_kg', store=True,
         readonly=False,
-        help="Birds x average weight. Overwrite it with the weighbridge net weight: the meat is produced and "
-             "billed on it.")
+        help="Birds x average weight. Overwrite it with the weighbridge net weight: the meat is produced on it.")
     net_average_weight = fields.Float(
         string='Actual Avg Weight (kg)', digits=(16, 3), compute='_compute_net_average_weight',
         help="Total net weight / birds harvested.")
-    partner_id = fields.Many2one('res.partner', string='Customer / Buyer', required=True)
-    price_per_kg = fields.Monetary(string='Price / kg', currency_field='currency_id', required=True)
-    total_sale_amount = fields.Monetary(
-        string='Total Sale Revenue', currency_field='currency_id', compute='_compute_amounts')
     harvest_cost = fields.Monetary(
         string='Batch Cost of These Birds', currency_field='currency_id', compute='_compute_amounts',
         help="Their share of the batch value in the shed (chicks plus capitalized feed, medication and "
              "mortality): it becomes the stock value of the meat.")
     cost_per_kg = fields.Monetary(string='Meat Cost / kg', currency_field='currency_id', compute='_compute_amounts')
+    remaining_birds = fields.Integer(string='Birds Left in Batch', compute='_compute_amounts')
+
+    # Optional fields preserved for backward compatibility
+    partner_id = fields.Many2one('res.partner', string='Customer / Buyer', required=False)
+    price_per_kg = fields.Monetary(string='Price / kg', currency_field='currency_id', required=False)
+    total_sale_amount = fields.Monetary(
+        string='Total Sale Revenue', currency_field='currency_id', compute='_compute_amounts')
     estimated_margin = fields.Monetary(
         string='Estimated Margin', currency_field='currency_id', compute='_compute_amounts')
-    remaining_birds = fields.Integer(string='Birds Left in Batch', compute='_compute_amounts')
 
     # ------------------------------------------------------------------ defaults and computes
     @api.model
@@ -72,7 +73,6 @@ class FarmBroilerHarvestWizard(models.TransientModel):
     @api.depends('flock_lot_id', 'location_id')
     def _compute_available_birds(self):
         for wizard in self:
-            # while the form is open the records are temporary copies (NewId): the stock query needs the real ones
             lot, shed = wizard.flock_lot_id._origin, wizard.location_id._origin
             wizard.available_birds = round(self.env['stock.quant']._get_available_quantity(
                 lot.product_id, shed, lot_id=lot, strict=True)) if lot and shed else 0
@@ -91,12 +91,12 @@ class FarmBroilerHarvestWizard(models.TransientModel):
     @api.depends('flock_lot_id', 'birds_count', 'total_weight_kg', 'price_per_kg')
     def _compute_amounts(self):
         for wizard in self:
-            sale = wizard.total_weight_kg * wizard.price_per_kg
+            sale = wizard.total_weight_kg * wizard.price_per_kg if wizard.price_per_kg else 0.0
             cost = wizard._get_harvest_cost()[0]
             wizard.total_sale_amount = sale
             wizard.harvest_cost = cost
             wizard.cost_per_kg = cost / wizard.total_weight_kg if wizard.total_weight_kg else 0.0
-            wizard.estimated_margin = sale - cost
+            wizard.estimated_margin = sale - cost if sale else 0.0
             wizard.remaining_birds = max(wizard.flock_lot_id._origin.live_bird_count - wizard.birds_count, 0)
 
     def _get_harvest_cost(self):
@@ -124,35 +124,32 @@ class FarmBroilerHarvestWizard(models.TransientModel):
             raise ValidationError(_("Invalid bird count. Available: %s", self.available_birds))
         if self.total_weight_kg <= 0:
             raise ValidationError(_("Enter the net weight of the birds harvested."))
-        if self.price_per_kg < 0:
-            raise ValidationError(_("The price per kg cannot be negative."))
         meat = self._get_meat_product()
         meat_qty = self._get_meat_qty(meat)
 
         # 1. Conversion MO: the birds (carrying their batch cost) become meat by weight
         production = self._create_and_process_harvest_mo(meat, meat_qty, self._get_harvest_cost()[1])
-        # 2. Sales order of the net weight at the price per kg
-        order = self._create_sales_order(meat, meat_qty, production)
-        production.farm_broiler_sale_id = order
+
         lot.message_post(body=_(
-            "Harvest %(order)s: %(birds)s birds, %(weight)s kg (%(avg)s kg/bird) sold to %(customer)s at %(price)s/kg "
-            "on %(sale)s. Batch cost released to the meat: %(cost)s (%(per_kg)s/kg).",
+            "Harvest %(order)s: %(birds)s birds, %(weight)s kg (%(avg)s kg/bird) converted into Broiler Meat. "
+            "Batch cost released to meat inventory: %(cost)s (%(per_kg)s/kg).",
             order=production.name, birds=self.birds_count, weight=formatLang(self.env, self.total_weight_kg),
-            avg=formatLang(self.env, self.net_average_weight, digits=3), customer=self.partner_id.display_name,
-            price=format_amount(self.env, self.price_per_kg, self.currency_id), sale=order.name,
+            avg=formatLang(self.env, self.net_average_weight, digits=3),
             cost=format_amount(self.env, production.farm_broiler_batch_cost, self.currency_id),
             per_kg=format_amount(self.env, production.farm_broiler_batch_cost / self.total_weight_kg, self.currency_id),
         ), subtype_xmlid='mail.mt_note')
-        # 3. No bird left in the batch: close it
+
+        # 2. No bird left in the batch: close it
         if not lot._get_live_bird_counts().get(lot.id):
             lot._close_broiler_batch()
 
-        if self.env['sale.order'].has_access('read'):
+        # Return action to view the completed Conversion Manufacturing Order
+        if self.env['mrp.production'].has_access('read'):
             return {
-                'name': _("Sales Order"),
+                'name': _("Conversion Manufacturing Order"),
                 'type': 'ir.actions.act_window',
-                'res_model': 'sale.order',
-                'res_id': order.id,
+                'res_model': 'mrp.production',
+                'res_id': production.id,
                 'view_mode': 'form',
                 'views': [(False, 'form')],
             }
@@ -179,7 +176,7 @@ class FarmBroilerHarvestWizard(models.TransientModel):
 
     def _get_meat_lot(self, meat):
         """Daily meat lot of the batch, MEAT-<batch>-<YYYYMMDD>, stamped with the batch as its parent flock so
-        the meat sales are reported to the batch."""
+        the meat sales can be reported to the batch."""
         self.ensure_one()
         if meat.tracking == 'none':
             return self.env['stock.lot']
@@ -206,8 +203,6 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         if not warehouse.manu_type_id:
             raise UserError(_("No manufacturing operation type found for %s.", warehouse.display_name or company.name))
         destination = company.farm_broiler_meat_location_id or warehouse.lot_stock_id
-        # Farm Managers are not Manufacturing users: the order is generated by the system from the data
-        # validated in this wizard.
         Production = self.env['mrp.production'].sudo().with_company(company)
         production = Production.create({
             'product_id': meat.id,
@@ -235,7 +230,6 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         })
         production.action_confirm()
         raw = production.move_raw_ids
-        # consume the batch's own birds, whatever the reservation picked
         raw.move_line_ids.unlink()
         raw.write({
             'move_line_ids': [Command.create({
@@ -254,32 +248,3 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         if production.state != 'done':
             raise UserError(_("Harvest order %s could not be completed automatically.", production.name))
         return production
-
-    def _create_sales_order(self, meat, meat_qty, production):
-        """Confirmed sales order of the net weight at the agreed price per kg."""
-        self.ensure_one()
-        company, batch = self.company_id, self.flock_lot_id
-        pricelist = self.partner_id.with_company(company).property_product_pricelist
-        currency = pricelist.currency_id or company.currency_id
-        kg = self.env.ref('uom.product_uom_kgm')
-        price = company.currency_id._convert(
-            kg._compute_price(self.price_per_kg, meat.uom_id), currency, company, fields.Date.context_today(self))
-        # the line shows the product itself: its description only carries the pickup
-        description = _("Broiler batch %(batch)s: %(birds)s birds, %(weight)s kg (%(avg)s kg/bird)",
-                        batch=batch.name, birds=self.birds_count, weight=formatLang(self.env, self.total_weight_kg),
-                        avg=formatLang(self.env, self.net_average_weight, digits=3))
-        order = self.env['sale.order'].sudo().with_company(company).create({
-            'partner_id': self.partner_id.id,
-            'company_id': company.id,
-            'user_id': self.env.uid,
-            'origin': f"{batch.name} / {production.name}",
-            'order_line': [Command.create({
-                'product_id': meat.id,
-                'name': description,
-                'product_uom_qty': meat_qty,
-                'product_uom_id': meat.uom_id.id,
-                'price_unit': price,
-            })],
-        })
-        order.action_confirm()
-        return order

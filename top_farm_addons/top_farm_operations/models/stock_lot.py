@@ -67,8 +67,18 @@ class StockLot(models.Model):
             birds = sum(productions.mapped('farm_broiler_bird_count'))
             weight = sum(productions.mapped('farm_broiler_weight_kg'))
             released = sum(productions.mapped('farm_broiler_batch_cost'))
+            
+            # Find sales orders linked to the batch either through productions or directly
+            sale_orders = productions.farm_broiler_sale_id.filtered(lambda so: so.state != 'cancel')
+            if 'farm_broiler_lot_id' in self.env['sale.order']._fields:
+                direct_sales = self.env['sale.order'].sudo().search([
+                    ('farm_broiler_lot_id', '=', batch.id),
+                    ('state', '!=', 'cancel'),
+                    ('id', 'not in', sale_orders.ids),
+                ])
+                sale_orders |= direct_sales
             sales = 0.0
-            for order in productions.farm_broiler_sale_id.filtered(lambda so: so.state != 'cancel'):
+            for order in sale_orders:
                 sales += order.currency_id._convert(
                     order.amount_untaxed, lot.currency_id, order.company_id, fields.Date.to_date(order.date_order))
             feed_qty = feed.get(batch, 0.0) if batch in broilers else 0.0
@@ -95,7 +105,7 @@ class StockLot(models.Model):
         return releases
 
     def action_open_broiler_harvest_wizard(self):
-        """Manager button on a growing broiler batch: record a pickup (birds and weight) and its meat sale."""
+        """Manager button on a growing broiler batch: record a harvest (birds and weight) and produce broiler meat."""
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
             raise AccessError(_("Only Farm Managers can record a broiler harvest."))
@@ -104,7 +114,7 @@ class StockLot(models.Model):
         if not self.live_bird_count:
             raise UserError(_("Batch %s has no live birds left to harvest: close it instead.", self.name))
         return {
-            'name': _("Record Broiler Harvest & Meat Sale"),
+            'name': _("Record Broiler Harvest & Meat Conversion"),
             'type': 'ir.actions.act_window',
             'res_model': 'farm.broiler.harvest.wizard',
             'view_mode': 'form',

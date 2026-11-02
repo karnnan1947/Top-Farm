@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Top Farm Operations - Feed, Eggs & Proportional MO Engine',
-    'version': '20.0.2.1.0',
+    'version': '20.0.2.2.0',
     'category': 'Poultry Farm Operations',
     'summary': 'Brooding and cage feeding, graded egg collections, laying transition and proportional MO splitting',
     'description': """
@@ -16,9 +16,9 @@ Top Farm Daily Operations
 - Zero-loss mathematical rounding reconciliation.
 - Nightly cron fallback for unharvested laying feed.
 - Broiler batches: feed and medication of a broiler shed are capitalized into the batch (Broiler Cost Pool).
-  The harvest wizard records a pickup (birds, average or weighbridge weight, buyer, price per kg): a
-  single-component MO converts the birds (units) into meat (kg) valued at the batch cost of the birds taken,
-  a confirmed sales order bills the net weight, and the batch closes with its last birds. Batch FCR, harvested
+  The harvest wizard records a pickup (birds, average or weighbridge weight): a single-component MO converts
+  the birds (units) into meat (kg) valued at the batch cost of the birds taken, updating stock quantity and
+  inventory valuation. Sales orders are created separately from the Sales module. Batch FCR, harvested
   weight, meat sales and gross margin on the batch.
     """,
     'author': 'Top Farm ERP Team',
@@ -40,6 +40,7 @@ Top Farm Daily Operations
         'views/stock_location_views.xml',
         'views/stock_lot_views.xml',
         'views/mrp_production_views.xml',
+        'views/sale_order_views.xml',
         'wizard/farm_broiler_harvest_wizard_views.xml',
         'views/farm_operations_menus.xml',
     ],

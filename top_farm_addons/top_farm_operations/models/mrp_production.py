@@ -33,7 +33,7 @@ class MrpProduction(models.Model):
              "the order's extra cost so the meat carries it.")
     farm_broiler_pool_move_id = fields.Many2one(
         'account.move', string='Cost Pool Release Entry', readonly=True, copy=False)
-    farm_broiler_sale_id = fields.Many2one('sale.order', string='Meat Sales Order', readonly=True, copy=False)
+    farm_broiler_sale_id = fields.Many2one('sale.order', string='Meat Sales Order', copy=False)
 
     def _farm_check_not_broiler_harvest(self):
         """A broiler harvest is posted at once: its meat carries the batch cost (Broiler Cost Pool entry), a sales

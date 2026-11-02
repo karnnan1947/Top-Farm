@@ -8,3 +8,4 @@ from . import stock_picking
 from . import farm_feed_log
 from . import farm_egg_collection
 from . import mrp_production
+from . import sale_order

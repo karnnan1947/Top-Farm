@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="top_farm_core.view_production_lot_form_top_farm"/>
         <field name="arch" type="xml">
             <xpath expr="//header/button[@name='action_close_broiler_batch']" position="before">
-                <button name="action_open_broiler_harvest_wizard" string="Record Harvest / Sell Meat" type="object"
+                <button name="action_open_broiler_harvest_wizard" string="Harvest Broilers" type="object"
                         class="oe_highlight" invisible="flock_stage != 'growing' or not live_bird_count"
                         groups="top_farm_core.group_farm_manager"/>
             </xpath>
