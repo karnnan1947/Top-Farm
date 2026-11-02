@@ -70,7 +70,8 @@
                 <field name="farm_location_id" optional="show"/>
                 <field name="location_id"/>
                 <field name="feeding_phase" widget="badge"
-                       decoration-info="feeding_phase == 'pre_laying'" decoration-success="feeding_phase == 'laying'"/>
+                       decoration-info="feeding_phase == 'pre_laying'" decoration-success="feeding_phase == 'laying'"
+                       decoration-primary="feeding_phase == 'broiler'"/>
                 <field name="total_feed_qty" sum="Total Feed"/>
                 <field name="total_med_qty" sum="Total Medication" optional="show"/>
                 <field name="state" widget="badge"
@@ -97,9 +98,11 @@
                 <separator/>
                 <filter string="Brooding" name="filter_brooding" domain="[('location_id.farm_hierarchy_level', '=', 'brooding')]"/>
                 <filter string="Cages" name="filter_cages" domain="[('location_id.farm_hierarchy_level', '=', 'cage')]"/>
+                <filter string="Broiler Sheds" name="filter_broiler_sheds" domain="[('location_id.farm_hierarchy_level', '=', 'broiler_shed')]"/>
                 <separator/>
                 <filter string="Pre-Laying" name="filter_pre_laying" domain="[('feeding_phase', '=', 'pre_laying')]"/>
                 <filter string="Laying Phase" name="filter_laying" domain="[('feeding_phase', '=', 'laying')]"/>
+                <filter string="Broiler (Capitalized)" name="filter_broiler" domain="[('feeding_phase', '=', 'broiler')]"/>
                 <separator/>
                 <filter string="Feeding Date" name="filter_date" date="date"/>
                 <group>
@@ -122,7 +125,8 @@
             <p class="o_view_nocontent_smiling_face">Log today's feeding</p>
             <p>Record the feed and medication given to a flock in its brooding nursery or cage. Brooding and
                pre-laying feed and all medication are expensed to the flock at once; laying feed is staged until
-               the day's egg collection consumes it.</p>
+               the day's egg collection consumes it. Feed and medication of a broiler batch are capitalized into
+               the batch until its harvest.</p>
         </field>
     </record>
 </odoo>

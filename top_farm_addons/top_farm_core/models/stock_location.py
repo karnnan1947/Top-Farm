@@ -2,8 +2,10 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-# Bird houses: the locations live birds are kept in. Sheds only group cages.
-BIRD_HOUSE_LEVELS = ('brooding', 'cage')
+# Bird houses: the locations live birds are kept in. Laying sheds only group cages.
+BIRD_HOUSE_LEVELS = ('brooding', 'broiler_shed', 'cage')
+# Houses day-old chicks are placed in, where their flock lot is created
+PLACEMENT_LEVELS = ('brooding', 'broiler_shed')
 
 
 class StockLocation(models.Model):
@@ -14,10 +16,12 @@ class StockLocation(models.Model):
         ('brooding', 'Brooding Nursery'),
         ('shed', 'Laying Shed'),
         ('cage', 'Cage'),
+        ('broiler_shed', 'Broiler Shed'),
     ], string='Farm Hierarchy Level', index=True,
        help="Permanent farm infrastructure. Farm Facility: an estate. Brooding Nursery: heated house where "
             "day-old chicks spend their first weeks. Laying Shed: groups cages. Cage: where pullets and hens "
-            "live from the cage allocation on. Flocks are lots that move through these locations.")
+            "live from the cage allocation on. Broiler Shed: house a broiler batch lives in from placement to "
+            "harvest. Flocks are lots that move through these locations.")
 
     farm_code = fields.Char(
         string='Estate Code',
@@ -57,6 +61,12 @@ class StockLocation(models.Model):
     flock_lot_ids = fields.Many2many(
         'stock.lot', string='Flocks Present', compute='_compute_flock_lot_ids',
         help="Flock lots with live birds in this location (and its sublocations) now.")
+
+    farm_broiler_cost_pool = fields.Boolean(
+        string='Broiler Cost Pool',
+        help="Virtual location receiving the feed, medication and dead birds of broiler batches. Their cost stays "
+             "capitalized in the batch until a harvest releases it into the meat: give the location a current "
+             "asset valuation account (e.g. Biological Assets - Broiler Rearing Costs), not an expense.")
 
     # -------------------------------------------------------------------------
     # COMPUTE METHODS
@@ -98,7 +108,7 @@ class StockLocation(models.Model):
     def _check_inside_farm(self):
         """Brooding nurseries, sheds and cages belong to an estate: its code names the flock lots."""
         for loc in self:
-            if loc.farm_hierarchy_level in ('brooding', 'shed', 'cage') and not loc.parent_farm_location_id:
+            if loc.farm_hierarchy_level not in (False, 'farm') and not loc.parent_farm_location_id:
                 raise ValidationError(_(
                     "'%(location)s' must be located under a location classified as 'Farm Facility'.",
                     location=loc.display_name))

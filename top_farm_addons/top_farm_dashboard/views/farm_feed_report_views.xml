@@ -58,9 +58,11 @@
                 <separator/>
                 <filter name="via_mo" string="Laying (egg production)" domain="[('consumption', '=', 'egg_mo')]"/>
                 <filter name="via_direct" string="Direct expense" domain="[('consumption', '=', 'direct')]"/>
+                <filter name="via_capitalized" string="Capitalized (broiler)" domain="[('consumption', '=', 'capitalized')]"/>
                 <separator/>
                 <filter name="in_brooding" string="Brooding" domain="[('house_type', '=', 'brooding')]"/>
                 <filter name="in_cages" string="Cages" domain="[('house_type', '=', 'cage')]"/>
+                <filter name="in_broiler_sheds" string="Broiler Sheds" domain="[('house_type', '=', 'broiler_shed')]"/>
                 <group>
                     <filter name="group_flock" string="Flock" context="{'group_by': 'flock_lot_id'}"/>
                     <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>

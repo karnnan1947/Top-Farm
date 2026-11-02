@@ -42,9 +42,9 @@ class FarmMortalityLog(models.Model):
     is_manager = fields.Boolean(compute='_compute_ui_flags')
 
     location_id = fields.Many2one(
-        'stock.location', string='Brooding / Cage', required=True, tracking=True,
-        domain="[('farm_hierarchy_level', 'in', ('brooding', 'cage'))]",
-        help="Brooding nursery (chick deaths in weeks 0-4) or cage the birds died in.")
+        'stock.location', string='Brooding / Cage / Shed', required=True, tracking=True,
+        domain="[('farm_hierarchy_level', 'in', ('brooding', 'broiler_shed', 'cage'))]",
+        help="Brooding nursery (chick deaths in weeks 0-4), cage or broiler shed the birds died in.")
     farm_location_id = fields.Many2one(
         'stock.location', string='Farm', related='location_id.parent_farm_location_id',
         store=True, readonly=True)
@@ -446,7 +446,12 @@ class FarmMortalityLog(models.Model):
 
     def _create_and_validate_scrap(self):
         self.ensure_one()
-        location = self._get_scrap_location()
+        if self.lot_id.flock_type == 'broiler':
+            # Broiler mortality is not written off: the dead birds' value joins the batch's Broiler Cost Pool and
+            # the surviving birds absorb it until the harvest.
+            location = self.company_id._get_farm_broiler_cost_location()
+        else:
+            location = self._get_scrap_location()
         if not location:
             raise UserError(_("No scrap location (usage 'Inventory adjustment') is configured."))
         # Odoo 20 has no stock.scrap document: a scrap is a stock move flagged is_scrap. The flock and its

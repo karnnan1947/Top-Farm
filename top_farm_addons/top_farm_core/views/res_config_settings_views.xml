@@ -37,6 +37,14 @@
                             </div>
                         </setting>
                     </block>
+                    <block title="Broiler Batches" name="top_farm_broiler_setting_container">
+                        <setting id="setting_farm_broiler_cost_location" company_dependent="1"
+                                 string="Broiler Cost Pool"
+                                 help="Feed, medication and dead birds of broiler batches go to this virtual location instead of an expense: their cost stays capitalized in the batch until a harvest releases it into the meat. Give the location a current asset valuation account (e.g. Biological Assets - Broiler Rearing Costs). Created on first use when empty.">
+                            <field name="farm_broiler_cost_location_id" class="o_light_label"
+                                   options="{'no_create': True}" placeholder="Broiler Rearing Costs"/>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

@@ -19,9 +19,11 @@ class FarmFeedLog(models.Model):
     company_id = fields.Many2one('res.company', required=True, index=True, default=lambda self: self.env.company)
     date = fields.Date(string='Feeding Date', required=True, default=fields.Date.context_today, tracking=True)
     location_id = fields.Many2one(
-        'stock.location', string='Brooding / Cage', required=True, tracking=True, check_company=True, index=True,
-        domain="[('farm_hierarchy_level', 'in', ('brooding', 'cage')), ('quant_ids.lot_id', '=?', flock_lot_id)]",
-        help="Brooding nursery (weeks 0-4) or cage the feed and medication were given in."
+        'stock.location', string='Brooding / Cage / Shed', required=True, tracking=True, check_company=True,
+        index=True,
+        domain="[('farm_hierarchy_level', 'in', ('brooding', 'broiler_shed', 'cage')), "
+               "('quant_ids.lot_id', '=?', flock_lot_id)]",
+        help="Brooding nursery (weeks 0-4), cage or broiler shed the feed and medication were given in."
     )
     flock_lot_id = fields.Many2one(
         'stock.lot', string='Flock Lot', required=True, tracking=True, index=True,
@@ -35,10 +37,12 @@ class FarmFeedLog(models.Model):
     feeding_phase = fields.Selection([
         ('pre_laying', 'Pre-Laying (Direct Expense)'),
         ('laying', 'Laying Phase (Staged for Egg Harvest)'),
+        ('broiler', 'Broiler Rearing (Capitalized to Batch)'),
     ], string='Feeding Phase', compute='_compute_feeding_phase', store=True, tracking=True,
        help="Brooding and rearing feed is a direct expense of the flock. Once the flock is in the Laying Phase, "
-            "cage feed is staged for the day's egg harvest. Follows the flock while the log is a draft and is "
-            "fixed when it is confirmed, so a later stage change never rewrites how past feed was accounted for.")
+            "cage feed is staged for the day's egg harvest. Feed and medication of a broiler batch are capitalized "
+            "into the batch (Broiler Cost Pool) until its harvest. Follows the flock while the log is a draft and "
+            "is fixed when it is confirmed, so a later stage change never rewrites how past feed was accounted for.")
 
     line_ids = fields.One2many('farm.feed.log.line', 'log_id', string='Feed & Medication Lines', copy=True)
     total_feed_qty = fields.Float(string='Total Feed (kg)', compute='_compute_totals', store=True, digits='Product Unit')
@@ -78,14 +82,16 @@ class FarmFeedLog(models.Model):
             flocks = location._get_flock_lots() if location else self.env['stock.lot']
             log.flock_lot_id = flocks if len(flocks) == 1 else log.flock_lot_id
 
-    @api.depends('flock_lot_id.flock_stage', 'location_id.farm_hierarchy_level', 'state')
+    @api.depends('flock_lot_id.flock_stage', 'flock_lot_id.flock_type', 'location_id.farm_hierarchy_level', 'state')
     def _compute_feeding_phase(self):
         for log in self:
-            if log.state == 'draft':
+            if log.state != 'draft':
+                log.feeding_phase = log.feeding_phase
+            elif log.flock_lot_id.flock_type == 'broiler':
+                log.feeding_phase = 'broiler'
+            else:
                 laying = log.flock_lot_id.flock_stage == 'laying' and log.location_id.farm_hierarchy_level == 'cage'
                 log.feeding_phase = 'laying' if laying else 'pre_laying'
-            else:
-                log.feeding_phase = log.feeding_phase
 
     @api.depends('line_ids.quantity', 'line_ids.is_medication', 'line_ids.product_id')
     def _compute_totals(self):
@@ -103,8 +109,9 @@ class FarmFeedLog(models.Model):
     @api.constrains('location_id', 'flock_lot_id')
     def _check_location_and_flock(self):
         for log in self:
-            if log.location_id.farm_hierarchy_level not in ('brooding', 'cage'):
-                raise ValidationError(_("%s is neither a brooding nursery nor a cage.", log.location_id.display_name))
+            if log.location_id.farm_hierarchy_level not in ('brooding', 'broiler_shed', 'cage'):
+                raise ValidationError(_("%s is not a brooding nursery, a cage or a broiler shed.",
+                                        log.location_id.display_name))
             if not log.flock_lot_id.is_flock_batch:
                 raise ValidationError(_("%s is not a flock lot.", log.flock_lot_id.display_name))
 
@@ -120,6 +127,12 @@ class FarmFeedLog(models.Model):
             if not log.location_id.get_live_bird_count(log.flock_lot_id):
                 raise UserError(_("Flock %(flock)s has no live birds in %(location)s.",
                                   flock=log.flock_lot_id.name, location=log.location_id.display_name))
+            if log.feeding_phase == 'broiler':
+                # Feed, medication and vaccines of a broiler batch are capitalized into it, not expensed
+                log._check_availability(log.line_ids)
+                log._consume(log.line_ids, log.company_id._get_farm_broiler_cost_location())
+                log.state = 'reconciled'
+                continue
             med_lines = log.line_ids.filtered('is_medication')
             feed_lines = log.line_ids - med_lines
             staged = log.feeding_phase == 'laying' and feed_lines
@@ -178,9 +191,9 @@ class FarmFeedLog(models.Model):
         return warehouse.int_type_id
 
     def _consume(self, lines, destination):
-        """Post validated transfers from each source silo / store to a consumption location.
-        Every move carries the flock and its brooding nursery or cage, so top_farm_core charges it to the
-        Flock account (and the Cage account in a cage)."""
+        """Post validated transfers from each source silo / store to a consumption location (or, for a broiler
+        batch, to the Broiler Cost Pool). Every move carries the flock and its brooding nursery, cage or broiler
+        shed, so top_farm_core charges it to the Flock account (and the Cage account in a cage)."""
         self.ensure_one()
         if not destination:
             raise UserError(_("Set the Feed and Medication Consumption locations in Top Farm > Farm "

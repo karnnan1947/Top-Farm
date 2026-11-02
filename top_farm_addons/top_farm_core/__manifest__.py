@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Top Farm Core - Flock Lots, Farm Infrastructure & Analytics',
-    'version': '20.0.2.1.0',
+    'version': '20.0.2.2.0',
     'category': 'Poultry Farm Operations',
     'summary': 'Permanent farm infrastructure, flock batches as lots, brooding-to-cage allocation and flock analytics',
     'description': """
@@ -20,6 +20,11 @@ Top Farm Core Infrastructure (Odoo 20)
 - The distribution is stamped on the expense line of the stock valuation entry, whose posting creates those
   analytic lines (one set, linked to the move), so the Profit and Loss by analytic account shows each flock.
   Consumption transfers made by hand carry the Flock Lot (and Farm House) of the birds they were given to.
+- Broiler batches: a bird product is a Layer or a Broiler. Broiler chicks are placed in a Broiler Shed under a
+  batch numbered BR-BATCH-[Year]-[NNN] and stay there until harvest (no nursery or cage). Their feed, medication
+  and dead birds go to a Broiler Cost Pool location, so the batch cost stays capitalized (current biological
+  asset) and the survivors absorb the mortality. The batch form shows the pre-sale estimate: average weight,
+  biomass, batch value in the shed, cost per bird and per kg, and market value at the negotiated rate.
     """,
     'author': 'Top Farm ERP Team',
     'depends': [
@@ -33,6 +38,7 @@ Top Farm Core Infrastructure (Odoo 20)
         'security/farm_security.xml',
         'security/ir.access.csv',
         'data/analytic_plan_data.xml',
+        'data/ir_sequence_data.xml',
         'data/stock_location_data.xml',
         'data/mail_activity_type_data.xml',
         'views/res_config_settings_views.xml',

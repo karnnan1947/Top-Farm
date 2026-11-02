@@ -17,9 +17,10 @@ class FarmMortalityBI(models.Model):
     company_id = fields.Many2one('res.company', readonly=True)
     flock_lot_id = fields.Many2one('stock.lot', string='Flock', readonly=True)
     farm_location_id = fields.Many2one('stock.location', string='Farm', readonly=True)
-    location_id = fields.Many2one('stock.location', string='Brooding / Cage', readonly=True)
+    location_id = fields.Many2one('stock.location', string='Brooding / Cage / Shed', readonly=True)
     house_type = fields.Selection(
-        [('brooding', 'Brooding Nursery'), ('cage', 'Cage')], string='House Type', readonly=True)
+        [('brooding', 'Brooding Nursery'), ('cage', 'Cage'), ('broiler_shed', 'Broiler Shed')],
+        string='House Type', readonly=True)
     bird_product_id = fields.Many2one('product.product', string='Bird Product', readonly=True)
     cause_of_death = fields.Selection(
         selection=lambda self: self.env['farm.mortality.log']._fields['cause_of_death'].selection,

@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
+from odoo import Command, api, fields, models, _
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tools import format_amount
 
 POINT_OF_LAY_ACTIVITY = 'top_farm_core.mail_activity_type_point_of_lay'
 FLOCK_STAGES = [
     ('brooding', 'Brooding'),
     ('rearing', 'Rearing / Pre-Laying'),
     ('laying', 'Laying'),
+    ('growing', 'Growing (Broiler)'),
     ('spent', 'Spent / Depleted'),
 ]
 
@@ -27,12 +29,17 @@ class StockLot(models.Model):
         help="Date the day-old chicks arrived from the hatchery. Set on the hatchery lot when the receipt is "
              "validated and passed on to the flock lots created from it; the flock age counts from it.")
     flock_age_weeks = fields.Float(string='Age (Weeks)', compute='_compute_flock_age', digits=(16, 1))
+    flock_age_days = fields.Integer(string='Age (Days)', compute='_compute_flock_age')
+    flock_type = fields.Selection(
+        related='product_id.farm_flock_type', string='Flock Type', store=True, index=True,
+        help="Layer Flock or Broiler Batch, from the Bird Type of the product.")
     flock_stage = fields.Selection(
         FLOCK_STAGES, string='Flock Stage', index=True, copy=False, tracking=True,
         help="Brooding: chicks under heat in the brooding nursery (weeks 0-4).\n"
              "Rearing / Pre-Laying: pullets in cages; their cost accumulates as flock investment.\n"
              "Laying: commercial egg production; feed becomes a component of the eggs.\n"
-             "Spent / Depleted: end of the laying cycle.")
+             "Growing (Broiler): a broiler batch in its shed; its costs are capitalized until harvest.\n"
+             "Spent / Depleted: end of the laying cycle, or every bird of the broiler batch harvested.")
     flock_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Flock Analytic Account', copy=False, tracking=True,
         help="Every cost of the flock (brooding and cage feed, medication, mortality) is tagged to this account.")
@@ -60,14 +67,50 @@ class StockLot(models.Model):
         help="Set once the Farm Managers were told that the flock is ready for the Laying Phase.")
     depletion_date = fields.Date(string='Depletion Date', readonly=True, copy=False)
 
+    # Broiler batch: pre-sale commercial planning. Feed, medication and dead birds of a broiler batch go to a
+    # Broiler Cost Pool location instead of an expense: the batch value stays capitalized (chicks in stock plus
+    # the pool) and each harvest releases the share of the birds it takes into the meat.
+    broiler_avg_weight = fields.Float(
+        string='Estimated Avg Weight (kg)', digits=(16, 3), tracking=True, copy=False,
+        help="Sample average live weight per bird, entered by the manager from the supervisor's growth checks.")
+    broiler_market_rate = fields.Monetary(
+        string='Market Selling Rate / kg', currency_field='currency_id', tracking=True, copy=False,
+        help="Negotiated or prevailing market rate per kg of live weight for this batch.")
+    broiler_estimated_biomass = fields.Float(
+        string='Total Biomass (kg)', compute='_compute_broiler_commercials', digits=(16, 2),
+        help="Live birds x estimated average weight.")
+    broiler_batch_cost = fields.Monetary(
+        string='Total Batch Investment', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Chicks placed, plus the feed, medication and vaccines capitalized into the batch since placement.")
+    broiler_remaining_cost = fields.Monetary(
+        string='Batch Value in Shed', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Batch cost still carried by the live birds: their chick value plus the batch's Broiler Cost Pool. "
+             "Mortality is not written off: the surviving birds absorb it.")
+    broiler_cost_per_bird = fields.Monetary(
+        string='Cost / Live Bird', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Batch value in shed / live birds.")
+    broiler_cost_per_kg = fields.Monetary(
+        string='Estimated Cost / kg', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Batch value in shed / total biomass.")
+    broiler_estimated_value = fields.Monetary(
+        string='Estimated Market Value', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Total biomass x market selling rate.")
+    broiler_estimated_margin = fields.Monetary(
+        string='Estimated Margin', compute='_compute_broiler_commercials', currency_field='currency_id',
+        help="Estimated market value less the batch value in shed.")
+    broiler_written_off_cost = fields.Monetary(
+        string='Written Off at Closing', currency_field='currency_id', readonly=True, copy=False,
+        help="Batch cost no harvest released (e.g. a batch lost to the last bird), expensed when it was closed.")
+
     # -------------------------------------------------------------------------
     # CRUD
     # -------------------------------------------------------------------------
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get('is_flock_batch'):
-                vals.setdefault('flock_stage', 'brooding')
+            if vals.get('is_flock_batch') and not vals.get('flock_stage'):
+                product = self.env['product.product'].browse(vals.get('product_id'))
+                vals['flock_stage'] = self._farm_initial_stage(product)
         lots = super().create(vals_list)
         lots.filtered('is_flock_batch')._farm_ensure_analytic_account()
         return lots
@@ -75,9 +118,14 @@ class StockLot(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if vals.get('is_flock_batch'):
-            self.filtered(lambda l: not l.flock_stage).flock_stage = 'brooding'
+            for lot in self.filtered(lambda l: not l.flock_stage):
+                lot.flock_stage = self._farm_initial_stage(lot.product_id)
             self._farm_ensure_analytic_account()
         return res
+
+    @api.model
+    def _farm_initial_stage(self, product):
+        return 'growing' if product.farm_flock_type == 'broiler' else 'brooding'
 
     def _farm_ensure_analytic_account(self):
         """Give each flock its own account in the Flock Analytic Plan, when the company asks for it."""
@@ -105,10 +153,32 @@ class StockLot(models.Model):
     def _compute_flock_age(self):
         today = fields.Date.context_today(self)
         for lot in self:
-            if lot.farm_arrival_date:
-                lot.flock_age_weeks = max(0.0, round((today - lot.farm_arrival_date).days / 7.0, 1))
-            else:
-                lot.flock_age_weeks = 0.0
+            days = max(0, (today - lot.farm_arrival_date).days) if lot.farm_arrival_date else 0
+            lot.flock_age_days = days
+            lot.flock_age_weeks = round(days / 7.0, 1)
+
+    @api.depends('broiler_avg_weight', 'broiler_market_rate')
+    def _compute_broiler_commercials(self):
+        broilers = self._origin.filtered(lambda l: l.is_flock_batch and l.flock_type == 'broiler')
+        figures = broilers._get_broiler_cost_figures()
+        for lot in self:
+            batch = figures.get(lot._origin.id)
+            if not batch:
+                lot.update(dict.fromkeys([
+                    'broiler_estimated_biomass', 'broiler_batch_cost', 'broiler_remaining_cost',
+                    'broiler_cost_per_bird', 'broiler_cost_per_kg', 'broiler_estimated_value',
+                    'broiler_estimated_margin'], 0.0))
+                continue
+            birds = lot.live_bird_count
+            biomass = birds * lot.broiler_avg_weight
+            value = biomass * lot.broiler_market_rate
+            lot.broiler_estimated_biomass = biomass
+            lot.broiler_batch_cost = batch['invested']
+            lot.broiler_remaining_cost = batch['remaining']
+            lot.broiler_cost_per_bird = batch['remaining'] / birds if birds else 0.0
+            lot.broiler_cost_per_kg = batch['remaining'] / biomass if biomass else 0.0
+            lot.broiler_estimated_value = value
+            lot.broiler_estimated_margin = value - batch['remaining'] if value else 0.0
 
     def _compute_live_bird_count(self):
         counts = self._origin._get_live_bird_counts()
@@ -179,6 +249,76 @@ class StockLot(models.Model):
     def _get_brooding_locations(self):
         self.ensure_one()
         return self.flock_location_ids.filtered(lambda l: l.farm_hierarchy_level == 'brooding')
+
+    # -------------------------------------------------------------------------
+    # BROILER BATCH COSTING
+    # -------------------------------------------------------------------------
+    def _get_broiler_pool_movements(self):
+        """{lot id: [inputs, dead birds]}: value sent to a Broiler Cost Pool location for each batch, net of what
+        came back. Inputs are the feed, medication and vaccines stamped with the batch; dead birds are its mortality
+        scraps and their reversals, recognised by their lot."""
+        lots = self.filtered('id')
+        if not lots:
+            return {}
+        moves = self.env['stock.move'].sudo().search([
+            ('state', '=', 'done'),
+            '|', ('location_dest_id.farm_broiler_cost_pool', '=', True),
+                 ('location_id.farm_broiler_cost_pool', '=', True),
+            '|', ('farm_flock_lot_id', 'in', lots.ids), ('move_line_ids.lot_id', 'in', lots.ids),
+        ])
+        movements = {lot.id: [0.0, 0.0] for lot in lots}
+        for move in moves:
+            if move.product_id.is_farm_bird:
+                batch, index = (move.move_line_ids.lot_id & lots)[:1], 1
+            else:
+                batch, index = move.farm_flock_lot_id & lots, 0
+            if batch:
+                # into the pool the move is outgoing (negative value), back from it incoming (positive)
+                movements[batch.id][index] -= move.value
+        return movements
+
+    def _get_broiler_pool_releases(self):
+        """{lot id: value taken out of the batch's Broiler Cost Pool}: written off at closing here;
+        top_farm_operations adds the share each harvest gave to the meat."""
+        return {lot.id: lot.broiler_written_off_cost for lot in self}
+
+    def _get_broiler_live_values(self):
+        """{lot id: stock value of the batch's live birds}: the lot's own value when the product is valued by
+        lot, else the live birds at the cost of the chicks placed."""
+        values = {}
+        for lot in self.filtered('id'):
+            if lot.product_id.lot_valuated:
+                values[lot.id] = lot.sudo().with_company(lot.company_id or self.env.company).total_value
+            else:
+                unit_cost = lot.chick_cost / lot.initial_bird_count if lot.initial_bird_count else 0.0
+                values[lot.id] = lot.live_bird_count * unit_cost
+        return values
+
+    def _get_total_accumulated_batch_cost(self):
+        """{lot id: chicks placed + feed, medication and vaccines capitalized into the broiler batch}."""
+        movements = self._get_broiler_pool_movements()
+        return {lot.id: lot.chick_cost + movements.get(lot.id, [0.0, 0.0])[0] for lot in self.filtered('id')}
+
+    def _get_broiler_cost_figures(self):
+        """{lot id: {invested, pool, live_value, remaining}} of broiler batches, in company currency.
+        The batch value in the shed (remaining) is the live birds' stock value plus the batch's Broiler Cost Pool:
+        a harvest releases exactly what the batch still carries, whatever happened to its birds before."""
+        lots = self.filtered('id')
+        movements = lots._get_broiler_pool_movements()
+        releases = lots._get_broiler_pool_releases()
+        live_values = lots._get_broiler_live_values()
+        figures = {}
+        for lot in lots:
+            inputs, dead = movements.get(lot.id, [0.0, 0.0])
+            pool = inputs + dead - releases.get(lot.id, 0.0)
+            live_value = live_values.get(lot.id, 0.0)
+            figures[lot.id] = {
+                'invested': lot.chick_cost + inputs,
+                'pool': pool,
+                'live_value': live_value,
+                'remaining': live_value + pool,
+            }
+        return figures
 
     # -------------------------------------------------------------------------
     # STAGE ACTIONS
@@ -259,6 +399,56 @@ class StockLot(models.Model):
         self._post_stage_note(_("Flock marked as Spent / Depleted by %(user)s at %(age)s weeks.",
                                 user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}"))
         return True
+
+    def action_close_broiler_batch(self):
+        """Manager button: every bird of the broiler batch has left its shed (harvests, mortality)."""
+        self.ensure_one()
+        self._check_flock_stage_change(['growing'])
+        if self.live_bird_count:
+            raise UserError(_("Batch %(batch)s still has %(birds)s live birds: harvest them, or record their "
+                              "mortality, before closing it.", batch=self.name, birds=self.live_bird_count))
+        self._close_broiler_batch()
+        return True
+
+    def _close_broiler_batch(self, date=None):
+        """Close the batch (Spent / Depleted) and expense what is left in its Broiler Cost Pool."""
+        self.ensure_one()
+        date = date or fields.Date.context_today(self)
+        self.write({'flock_stage': 'spent', 'depletion_date': date})
+        written_off = self._broiler_write_off_pool(date)
+        body = _("Broiler batch closed at %(days)s days.", days=self.flock_age_days)
+        if written_off:
+            body += " " + _("%(amount)s of batch cost that no harvest released was expensed.",
+                            amount=format_amount(self.env, written_off, self.currency_id))
+        self._post_stage_note(body)
+
+    def _broiler_write_off_pool(self, date):
+        """Expense the cost left in the Broiler Cost Pool of a batch being closed (e.g. birds that died to the
+        last one, or left the batch other than by a harvest). Returns the amount written off."""
+        self.ensure_one()
+        currency = self.currency_id
+        pool = currency.round(self._get_broiler_cost_figures().get(self.id, {}).get('pool', 0.0))
+        if currency.is_zero(pool):
+            return 0.0
+        company = self.company_id or self.env.company
+        pool_account = company._get_farm_broiler_cost_location().valuation_account_id
+        accounts = self.product_id.product_tmpl_id.with_company(company).get_product_accounts()
+        # without an account on the pool location, the capitalized costs were never posted: nothing to reverse
+        if pool_account and accounts['expense']:
+            label = _("%s - batch cost written off at closing", self.name)
+            entry = self.env['account.move'].sudo().with_company(company).create({
+                'journal_id': (company.account_stock_journal_id or accounts['stock_journal']).id,
+                'date': date,
+                'ref': label,
+                'move_type': 'entry',
+                'line_ids': [
+                    Command.create({'name': label, 'account_id': accounts['expense'].id, 'balance': pool}),
+                    Command.create({'name': label, 'account_id': pool_account.id, 'balance': -pool}),
+                ],
+            })
+            entry._post()
+        self.broiler_written_off_cost += pool
+        return pool
 
     def action_allocate_to_cages(self):
         """Shortcut from the flock: open the Brooding-to-Cage wizard on the nursery holding it."""

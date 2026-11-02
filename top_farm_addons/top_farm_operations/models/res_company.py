@@ -23,6 +23,14 @@ class ResCompany(models.Model):
     farm_egg_large_product_id = fields.Many2one('product.product', string='Large Egg Product')
     farm_egg_jumbo_product_id = fields.Many2one('product.product', string='Jumbo Egg Product')
     farm_egg_damage_product_id = fields.Many2one('product.product', string='Damaged / Cracked Egg Product')
+    farm_broiler_meat_product_id = fields.Many2one(
+        'product.product', string='Broiler Meat Product',
+        help="Product the broiler harvest produces and sells by weight (e.g. Broiler Meat (Live Weight), in kg).")
+    farm_broiler_meat_location_id = fields.Many2one(
+        'stock.location', string='Broiler Meat Dispatch Location',
+        domain="[('usage', '=', 'internal')]",
+        help="Where harvested broiler meat is received and delivered from. Empty: the stock location of the "
+             "warehouse of the broiler shed.")
 
     laying_transition_mode = fields.Selection([
         ('manual', 'Alert the Farm Managers, a manager confirms'),

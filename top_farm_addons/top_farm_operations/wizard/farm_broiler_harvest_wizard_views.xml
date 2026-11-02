@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_broiler_harvest_wizard_form" model="ir.ui.view">
+        <field name="name">farm.broiler.harvest.wizard.form</field>
+        <field name="model">farm.broiler.harvest.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Record Broiler Harvest &amp; Meat Sale">
+                <field name="company_id" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="shed_location_ids" invisible="1"/>
+                <group>
+                    <group string="Pickup">
+                        <field name="flock_lot_id"/>
+                        <field name="location_id" options="{'no_create': True}"/>
+                        <field name="available_birds"/>
+                        <field name="birds_count"/>
+                        <field name="average_weight"/>
+                        <field name="total_weight_kg"/>
+                        <field name="net_average_weight"/>
+                    </group>
+                    <group string="Meat Sale">
+                        <field name="partner_id" domain="[('company_id', 'in', [company_id, False])]"/>
+                        <field name="price_per_kg"/>
+                        <field name="total_sale_amount"/>
+                        <field name="harvest_cost"/>
+                        <field name="cost_per_kg"/>
+                        <field name="estimated_margin"
+                               decoration-danger="estimated_margin &lt; 0"
+                               decoration-success="estimated_margin &gt; 0"/>
+                        <field name="remaining_birds"/>
+                    </group>
+                </group>
+                <div class="alert alert-info" role="status" invisible="remaining_birds or not birds_count">
+                    These are the last birds of the batch: it is closed once the harvest is recorded.
+                </div>
+                <p class="text-muted">A manufacturing order converts the birds (units) into meat by weight, valued at the
+                    batch cost of the birds harvested. A confirmed sales order bills the customer for the net weight
+                    at the price per kg.</p>
+                <footer>
+                    <button name="action_confirm_harvest" string="Confirm Harvest &amp; Sale" type="object"
+                            class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

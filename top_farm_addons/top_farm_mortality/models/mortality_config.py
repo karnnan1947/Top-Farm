@@ -58,6 +58,9 @@ class FarmMortalityConfig(models.Model):
         bad_categs = self.env['product.template'].sudo().search(
             [('is_farm_bird', '=', True), ('categ_id.property_valuation', '!=', 'real_time')]
         ).categ_id.mapped('display_name')
+        broilers = self.env['product.template'].sudo().search_count(
+            [('is_farm_bird', '=', True), ('farm_flock_type', '=', 'broiler')], limit=1)
+        broiler_pool = self.env.company.farm_broiler_cost_location_id
         for cfg in self:
             lines = []
             if not loc.valuation_account_id:
@@ -67,4 +70,8 @@ class FarmMortalityConfig(models.Model):
             if bad_categs:
                 lines.append(_("Bird product categories without Automated valuation: %s. "
                                "No journal entry will be posted for them.", ', '.join(bad_categs)))
+            if broilers and not broiler_pool.valuation_account_id:
+                lines.append(_("The Broiler Cost Pool '%s' has no valuation account: broiler mortality, feed and "
+                               "medication are capitalized in stock only, with no journal entry.",
+                               broiler_pool.display_name))
             cfg.accounting_warning = '\n'.join(lines)

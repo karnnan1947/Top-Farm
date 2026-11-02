@@ -19,17 +19,22 @@ class FarmProfitabilityReport(models.Model):
     production_date = fields.Date(string='Egg Production Date', readonly=True)
     eggs_sold = fields.Float(string='Eggs Sold', readonly=True, digits=(16, 2))
     birds_sold = fields.Float(string='Birds Sold', readonly=True, digits=(16, 2))
+    meat_sold = fields.Float(string='Broiler Meat Sold (kg)', readonly=True, digits=(16, 2))
     egg_revenue = fields.Monetary(string='Egg Revenue', currency_field='currency_id', readonly=True)
     bird_revenue = fields.Monetary(
         string='Spent Hen Revenue', currency_field='currency_id', readonly=True,
         help="Invoiced sales of the flock's live birds (spent hens, culls).")
+    meat_revenue = fields.Monetary(
+        string='Broiler Meat Revenue', currency_field='currency_id', readonly=True,
+        help="Invoiced sales of the meat harvested from a broiler batch.")
     revenue = fields.Monetary(string='Total Revenue', currency_field='currency_id', readonly=True)
     feed_cost = fields.Monetary(string='Feed Cost', currency_field='currency_id', readonly=True)
     medication_cost = fields.Monetary(string='Medication Cost', currency_field='currency_id', readonly=True)
     mortality_cost = fields.Monetary(string='Mortality Loss', currency_field='currency_id', readonly=True)
     bird_cost = fields.Monetary(
         string='Bird Cost of Sales', currency_field='currency_id', readonly=True,
-        help="Stock value of the birds that left the flock other than by mortality (e.g. spent hens sold).")
+        help="Stock value of the birds that left the flock other than by mortality (e.g. spent hens sold, "
+             "broilers harvested).")
     other_cost = fields.Monetary(
         string='Other Direct Cost', currency_field='currency_id', readonly=True,
         help="Other costs tagged to the flock: heating, labour and other bills.")
@@ -55,15 +60,17 @@ class FarmProfitabilityReport(models.Model):
                 WITH {REVENUE_CTES}, {cost_ctes(self.env)},
                 u AS (
                     SELECT rev.date, rev.company_id, rev.flock_lot_id, rev.farm_location_id, rev.cage_location_id,
-                           rev.production_date, rev.eggs_sold, rev.birds_sold,
-                           CASE WHEN rev.grade = 'spent_hen' THEN 0.0 ELSE rev.revenue END AS egg_revenue,
+                           rev.production_date, rev.eggs_sold, rev.birds_sold, rev.meat_sold,
+                           CASE WHEN rev.grade IN ('spent_hen', 'broiler_meat') THEN 0.0 ELSE rev.revenue END
+                               AS egg_revenue,
                            CASE WHEN rev.grade = 'spent_hen' THEN rev.revenue ELSE 0.0 END AS bird_revenue,
+                           CASE WHEN rev.grade = 'broiler_meat' THEN rev.revenue ELSE 0.0 END AS meat_revenue,
                            0.0 AS feed_cost, 0.0 AS medication_cost, 0.0 AS mortality_cost, 0.0 AS bird_cost,
                            0.0 AS other_cost
                       FROM rev
                     UNION ALL
                     SELECT c.date, c.company_id, c.flock_lot_id, c.farm_location_id, c.cage_location_id,
-                           NULL::date, 0.0, 0.0, 0.0, 0.0,
+                           NULL::date, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                            CASE WHEN c.cost_type = 'feed' THEN c.cost ELSE 0.0 END,
                            CASE WHEN c.cost_type = 'medication' THEN c.cost ELSE 0.0 END,
                            CASE WHEN c.cost_type = 'mortality' THEN c.cost ELSE 0.0 END,
@@ -72,13 +79,13 @@ class FarmProfitabilityReport(models.Model):
                       FROM costs c WHERE c.cost_type IS NOT NULL
                 ),
                 t AS (
-                    SELECT u.*, u.egg_revenue + u.bird_revenue AS revenue,
+                    SELECT u.*, u.egg_revenue + u.bird_revenue + u.meat_revenue AS revenue,
                            u.feed_cost + u.medication_cost + u.mortality_cost + u.bird_cost + u.other_cost AS total_cost
                       FROM u
                 )
                 SELECT row_number() OVER () AS id, t.date, t.company_id, rc.currency_id, t.flock_lot_id,
                        t.farm_location_id, t.cage_location_id, t.production_date, t.eggs_sold, t.birds_sold,
-                       t.egg_revenue, t.bird_revenue, t.revenue,
+                       t.meat_sold, t.egg_revenue, t.bird_revenue, t.meat_revenue, t.revenue,
                        t.feed_cost, t.medication_cost, t.mortality_cost, t.bird_cost, t.other_cost, t.total_cost,
                        t.revenue - t.total_cost AS gross_profit,
                        CASE WHEN t.revenue <> 0 THEN (t.revenue - t.total_cost) / t.revenue * 100 ELSE 0 END

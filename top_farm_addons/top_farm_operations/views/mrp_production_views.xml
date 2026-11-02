@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Broiler harvest orders: the batch, the pickup and the batch cost the meat carries -->
+    <record id="mrp_production_form_view_top_farm_broiler" model="ir.ui.view">
+        <field name="name">mrp.production.form.top_farm.broiler</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp.mrp_production_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='miscellaneous']" position="before">
+                <page string="Broiler Harvest" name="broiler_harvest" invisible="not farm_broiler_lot_id">
+                    <group>
+                        <group>
+                            <field name="farm_broiler_lot_id"/>
+                            <field name="farm_broiler_bird_count"/>
+                            <field name="farm_broiler_weight_kg"/>
+                            <field name="farm_broiler_sale_id"/>
+                        </group>
+                        <group>
+                            <field name="farm_currency_id" invisible="1"/>
+                            <field name="farm_broiler_batch_cost"/>
+                            <field name="farm_broiler_pool_cost"/>
+                            <field name="farm_broiler_pool_move_id" invisible="not farm_broiler_pool_move_id"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

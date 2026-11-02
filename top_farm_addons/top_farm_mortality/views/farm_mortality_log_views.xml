@@ -115,6 +115,7 @@
                 <separator/>
                 <filter name="brooding" string="Brooding" domain="[('location_id.farm_hierarchy_level', '=', 'brooding')]"/>
                 <filter name="cages" string="Cages" domain="[('location_id.farm_hierarchy_level', '=', 'cage')]"/>
+                <filter name="broiler_sheds" string="Broiler Sheds" domain="[('location_id.farm_hierarchy_level', '=', 'broiler_shed')]"/>
                 <group>
                     <filter name="group_flock" string="Flock" context="{'group_by': 'lot_id'}"/>
                     <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>

@@ -11,6 +11,9 @@
                     <label for="is_farm_bird"/>
                 </span>
             </xpath>
+            <xpath expr="//field[@name='categ_id']" position="after">
+                <field name="farm_flock_type" invisible="not is_farm_bird"/>
+            </xpath>
         </field>
     </record>
 </odoo>

@@ -5,7 +5,7 @@ from .report_sql import REVENUE_CTES
 
 class FarmRevenueAllocation(models.Model):
     _name = 'farm.revenue.allocation'
-    _description = 'Flock Revenue Allocation (eggs to cages, spent hens to the flock)'
+    _description = 'Flock Revenue Allocation (eggs to cages, spent hens and broiler meat to the flock)'
     _auto = False
     _order = 'date desc, id'
 
@@ -17,11 +17,13 @@ class FarmRevenueAllocation(models.Model):
     cage_location_id = fields.Many2one('stock.location', string='Cage', readonly=True)
     production_date = fields.Date(string='Egg Production Date', readonly=True)
     grade = fields.Selection([('medium', 'Medium'), ('large', 'Large'), ('jumbo', 'Jumbo'),
-                              ('damage', 'Damaged / Cracked'), ('spent_hen', 'Spent Hens')],
+                              ('damage', 'Damaged / Cracked'), ('spent_hen', 'Spent Hens'),
+                              ('broiler_meat', 'Broiler Meat')],
                              string='Egg Grade / Birds', readonly=True)
     product_id = fields.Many2one('product.product', readonly=True)
     eggs_sold = fields.Float(string='Eggs Sold', readonly=True, digits=(16, 2))
     birds_sold = fields.Float(string='Birds Sold', readonly=True, digits=(16, 2))
+    meat_sold = fields.Float(string='Broiler Meat Sold (kg)', readonly=True, digits=(16, 2))
     revenue = fields.Monetary(string='Allocated Revenue', currency_field='currency_id', readonly=True)
 
     def init(self):
@@ -31,6 +33,6 @@ class FarmRevenueAllocation(models.Model):
                 WITH {REVENUE_CTES}
                 SELECT row_number() OVER () AS id, rev.date, rev.company_id, rc.currency_id,
                        rev.flock_lot_id, rev.farm_location_id, rev.cage_location_id, rev.production_date,
-                       rev.grade, rev.product_id, rev.eggs_sold, rev.birds_sold, rev.revenue
+                       rev.grade, rev.product_id, rev.eggs_sold, rev.birds_sold, rev.meat_sold, rev.revenue
                   FROM rev JOIN res_company rc ON rc.id = rev.company_id
             )""")

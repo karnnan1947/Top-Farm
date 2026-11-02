@@ -4,7 +4,7 @@ import re
 from odoo import Command, api, fields, models, _
 from odoo.exceptions import UserError
 
-from .stock_location import BIRD_HOUSE_LEVELS
+from .stock_location import BIRD_HOUSE_LEVELS, PLACEMENT_LEVELS
 
 
 class StockMove(models.Model):
@@ -15,9 +15,9 @@ class StockMove(models.Model):
         string='Farm House',
         index='btree_not_null',
         copy=False,
-        domain="[('farm_hierarchy_level', 'in', ('brooding', 'cage'))]",
-        help="Brooding nursery or cage the move's cost belongs to, set by farm operations (feed log, egg MO, "
-             "scrap) for analytic tagging."
+        domain="[('farm_hierarchy_level', 'in', ('brooding', 'broiler_shed', 'cage'))]",
+        help="Brooding nursery, broiler shed or cage the move's cost belongs to, set by farm operations (feed log, "
+             "egg MO, harvest MO, scrap) for analytic tagging."
     )
     farm_flock_lot_id = fields.Many2one(
         'stock.lot',
@@ -26,7 +26,7 @@ class StockMove(models.Model):
         copy=False,
         domain="[('is_flock_batch', '=', True)]",
         help="On a farm input (feed, medication): the flock it was given to.\n"
-             "On chicks dispatched to a brooding nursery: the flock lot they are placed under."
+             "On chicks dispatched to a brooding nursery or a broiler shed: the flock lot they are placed under."
     )
     farm_lot_conversion = fields.Boolean(
         string='Flock Lot Conversion', readonly=True, copy=False,
@@ -184,14 +184,21 @@ class StockMove(models.Model):
         return moves
 
     def _farm_brooding_placement_lines(self):
-        """Lines of bird moves bringing a hatchery (non-flock) lot into a brooding nursery."""
+        """Lines of bird moves bringing a hatchery (non-flock) lot into a brooding nursery or a broiler shed."""
         return self.filtered(lambda m: m.product_id.is_farm_bird and not m.farm_lot_conversion).move_line_ids.filtered(
-            lambda ml: ml.location_dest_id.farm_hierarchy_level == 'brooding' and not ml.lot_id.is_flock_batch)
+            lambda ml: ml.location_dest_id.farm_hierarchy_level in PLACEMENT_LEVELS and not ml.lot_id.is_flock_batch)
 
     def _farm_check_flock_lot_entry(self):
-        """Approach A: the clerk must enter the flock lot before chicks reach a brooding nursery."""
+        """Approach A: the clerk must enter the flock lot before chicks reach a brooding nursery. Layer chicks are
+        placed in brooding nurseries (then allocated to cages), broiler chicks in the broiler shed they grow in."""
         for line in self._farm_brooding_placement_lines():
             move = line.move_id
+            house = line.location_dest_id
+            broiler = move.product_id.farm_flock_type == 'broiler'
+            if broiler != (house.farm_hierarchy_level == 'broiler_shed'):
+                raise UserError(_(
+                    "%(product)s cannot be placed in %(house)s: broiler chicks go to a Broiler Shed, layer chicks to "
+                    "a Brooding Nursery.", product=move.product_id.display_name, house=house.display_name))
             flock = move.farm_flock_lot_id
             if flock and flock.product_id != move.product_id:
                 raise UserError(_("The flock lot %(lot)s is a lot of %(lot_product)s, not of %(product)s.",
@@ -229,8 +236,12 @@ class StockMove(models.Model):
                 move.farm_flock_lot_id = flocks
 
     def _farm_flock_lot_name(self, brooding, source_lot):
-        """[Estate Code]-[DD-MM-YYYY], dated by the chick arrival or the transfer as the settings say."""
+        """[Estate Code]-[DD-MM-YYYY], dated by the chick arrival or the transfer as the settings say.
+        A broiler batch takes the next number of the broiler batch sequence (BR-BATCH-2026-001)."""
         self.ensure_one()
+        if self.product_id.farm_flock_type == 'broiler':
+            sequence = self.env['ir.sequence'].sudo().search([('code', '=', 'farm.broiler.batch')], limit=1)
+            return sequence.get_next_char(sequence.number_next_actual) if sequence else 'BR-BATCH'
         farm = brooding.parent_farm_location_id
         code = re.sub(r'[^A-Za-z0-9]+', '-', farm.farm_code or farm.name).strip('-').upper()
         lot_date = fields.Date.context_today(self, self.date)
@@ -242,8 +253,10 @@ class StockMove(models.Model):
         """Approach B. A flock of that name still in brooding is reused: more chicks of the same arrival join
         it. A flock of that name that has already left brooding is another flock: the new one gets a suffix."""
         self.ensure_one()
-        base = self._farm_flock_lot_name(brooding, source_lot)
+        if self.product_id.farm_flock_type == 'broiler':
+            return self._farm_generate_broiler_batch(brooding, source_lot)
         Lot = self.env['stock.lot']
+        base = self._farm_flock_lot_name(brooding, source_lot)
         name, suffix = base, 1
         while True:
             flock = Lot.search([('product_id', '=', self.product_id.id), ('name', '=', name),
@@ -261,6 +274,27 @@ class StockMove(models.Model):
             'company_id': self.company_id.id,
             'is_flock_batch': True,
             'farm_location_id': brooding.parent_farm_location_id.id,
+        })
+
+    def _farm_generate_broiler_batch(self, shed, source_lot):
+        """Approach B for broilers: a shed is filled all-in, so chicks of the same arrival joining a growing batch
+        already in the shed are part of it; otherwise a new batch is numbered from the broiler batch sequence."""
+        self.ensure_one()
+        arrival = source_lot.farm_arrival_date or fields.Date.context_today(self, self.date)
+        batch = shed._get_flock_lots().filtered(
+            lambda lot: lot.product_id == self.product_id and lot.flock_stage == 'growing'
+            and lot.farm_arrival_date == arrival)[:1]
+        if batch:
+            return batch
+        name = self.env['ir.sequence'].with_company(self.company_id).next_by_code('farm.broiler.batch')
+        if not name:
+            raise UserError(_("The broiler batch sequence (code farm.broiler.batch) is missing."))
+        return self.env['stock.lot'].create({
+            'name': name,
+            'product_id': self.product_id.id,
+            'company_id': self.company_id.id,
+            'is_flock_batch': True,
+            'farm_location_id': shed.parent_farm_location_id.id,
         })
 
     def _farm_relot(self, brooding, source_lot, flock, qty, conversion):

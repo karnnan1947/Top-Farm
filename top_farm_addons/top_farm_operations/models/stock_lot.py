@@ -4,6 +4,7 @@ from datetime import timedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models, _
+from odoo.exceptions import AccessError, UserError
 
 from odoo.addons.top_farm_core.models.stock_lot import POINT_OF_LAY_ACTIVITY
 
@@ -22,9 +23,106 @@ class StockLot(models.Model):
         help="Eggs over live bird days of the flock's cages on the rolling window of the Top Farm settings, "
              "up to today. The Laying Phase benchmark is checked against it.")
 
+    # Broiler batch: harvests (meat MOs) and batch economics
+    broiler_harvest_ids = fields.One2many('mrp.production', 'farm_broiler_lot_id', string='Harvests')
+    broiler_harvest_count = fields.Integer(string='Harvest Count', compute='_compute_broiler_harvest')
+    broiler_harvested_birds = fields.Integer(string='Birds Harvested', compute='_compute_broiler_harvest')
+    broiler_harvested_weight = fields.Float(
+        string='Meat Harvested (kg)', compute='_compute_broiler_harvest', digits=(16, 2))
+    broiler_harvest_avg_weight = fields.Float(
+        string='Avg Harvest Weight (kg)', compute='_compute_broiler_harvest', digits=(16, 3))
+    broiler_released_cost = fields.Monetary(
+        string='Batch Cost Released to Meat', compute='_compute_broiler_harvest', currency_field='currency_id',
+        help="Stock value the harvests gave to the meat: the batch cost of the birds harvested.")
+    broiler_feed_qty = fields.Float(
+        string='Feed Consumed (kg)', compute='_compute_broiler_harvest', digits=(16, 2),
+        help="Feed of the batch's confirmed feed logs.")
+    broiler_fcr = fields.Float(
+        string='FCR', compute='_compute_broiler_harvest', digits=(16, 3),
+        help="Feed Conversion Ratio: kg of feed per kg of live weight produced (meat harvested plus the estimated "
+             "biomass still in the shed).")
+    broiler_sale_amount = fields.Monetary(
+        string='Meat Sales', compute='_compute_broiler_harvest', currency_field='currency_id',
+        help="Untaxed amount of the sales orders recorded with the harvests.")
+    broiler_gross_margin = fields.Monetary(
+        string='Batch Gross Margin', compute='_compute_broiler_harvest', currency_field='currency_id',
+        help="Meat sales less the batch cost released to the meat.")
+    broiler_margin_pct = fields.Float(string='Gross Margin (%)', compute='_compute_broiler_harvest', digits=(16, 2))
+
     def _compute_rolling_hen_day(self):
         for lot in self:
             lot.rolling_hen_day_pct = lot._origin._get_rolling_hen_day()[0] if lot.is_flock_batch else 0.0
+
+    @api.depends('broiler_avg_weight')
+    def _compute_broiler_harvest(self):
+        broilers = self._origin.filtered(lambda l: l.is_flock_batch and l.flock_type == 'broiler')
+        harvests = self.env['mrp.production'].sudo().search(
+            [('farm_broiler_lot_id', 'in', broilers.ids), ('state', '=', 'done')]).grouped('farm_broiler_lot_id')
+        feed = dict(self.env['farm.feed.log'].sudo()._read_group(
+            [('flock_lot_id', 'in', broilers.ids), ('state', '=', 'reconciled')],
+            ['flock_lot_id'], ['total_feed_qty:sum'])) if broilers else {}
+        for lot in self:
+            batch = lot._origin
+            productions = harvests.get(batch, self.env['mrp.production'])
+            birds = sum(productions.mapped('farm_broiler_bird_count'))
+            weight = sum(productions.mapped('farm_broiler_weight_kg'))
+            released = sum(productions.mapped('farm_broiler_batch_cost'))
+            sales = 0.0
+            for order in productions.farm_broiler_sale_id.filtered(lambda so: so.state != 'cancel'):
+                sales += order.currency_id._convert(
+                    order.amount_untaxed, lot.currency_id, order.company_id, fields.Date.to_date(order.date_order))
+            feed_qty = feed.get(batch, 0.0) if batch in broilers else 0.0
+            produced = weight + (lot.broiler_estimated_biomass if lot.flock_stage == 'growing' else 0.0)
+            lot.broiler_harvest_count = len(productions)
+            lot.broiler_harvested_birds = birds
+            lot.broiler_harvested_weight = weight
+            lot.broiler_harvest_avg_weight = weight / birds if birds else 0.0
+            lot.broiler_released_cost = released
+            lot.broiler_feed_qty = feed_qty
+            lot.broiler_fcr = round(feed_qty / produced, 3) if produced else 0.0
+            lot.broiler_sale_amount = sales
+            lot.broiler_gross_margin = sales - released if sales else 0.0
+            lot.broiler_margin_pct = (sales - released) / sales * 100.0 if sales else 0.0
+
+    def _get_broiler_pool_releases(self):
+        """Each harvest takes the birds' share of the Broiler Cost Pool into the meat."""
+        releases = super()._get_broiler_pool_releases()
+        if self.ids:
+            for lot, amount in self.env['mrp.production'].sudo()._read_group(
+                    [('farm_broiler_lot_id', 'in', self.ids), ('state', '=', 'done')],
+                    ['farm_broiler_lot_id'], ['farm_broiler_pool_cost:sum']):
+                releases[lot.id] = releases.get(lot.id, 0.0) + amount
+        return releases
+
+    def action_open_broiler_harvest_wizard(self):
+        """Manager button on a growing broiler batch: record a pickup (birds and weight) and its meat sale."""
+        self.ensure_one()
+        if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
+            raise AccessError(_("Only Farm Managers can record a broiler harvest."))
+        if self.flock_type != 'broiler' or self.flock_stage != 'growing':
+            raise UserError(_("%s is not a growing broiler batch.", self.display_name))
+        if not self.live_bird_count:
+            raise UserError(_("Batch %s has no live birds left to harvest: close it instead.", self.name))
+        return {
+            'name': _("Record Broiler Harvest & Meat Sale"),
+            'type': 'ir.actions.act_window',
+            'res_model': 'farm.broiler.harvest.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_flock_lot_id': self.id,
+                'default_average_weight': self.broiler_avg_weight,
+                'default_price_per_kg': self.broiler_market_rate,
+            },
+        }
+
+    def action_view_broiler_harvests(self):
+        self.ensure_one()
+        action = self.env['ir.actions.act_window']._for_xml_id('mrp.mrp_production_action')
+        action['display_name'] = _("Harvests of %s", self.name)
+        action['domain'] = [('farm_broiler_lot_id', '=', self.id)]
+        action['context'] = {'create': False}
+        return action
 
     def _get_rolling_hen_day(self, end_date=None):
         """(hen-day %, eggs, live bird days) of the flock over the rolling window ending on `end_date`.

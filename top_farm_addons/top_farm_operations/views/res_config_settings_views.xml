@@ -72,6 +72,20 @@
                             </div>
                         </div>
                     </setting>
+                    <setting id="setting_farm_broiler_meat" company_dependent="1"
+                             string="Broiler Harvest &amp; Meat Sales"
+                             help="Product the broiler harvest produces and sells by weight (FIFO or Average cost, unit in kg), and the store it is received and delivered from (empty: the shed's warehouse stock).">
+                        <div class="content-group">
+                            <div class="row mt-2">
+                                <label for="farm_broiler_meat_product_id" string="Meat Product" class="col-lg-4 o_light_label"/>
+                                <field name="farm_broiler_meat_product_id" class="col-lg-6"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_broiler_meat_location_id" string="Dispatch Store" class="col-lg-4 o_light_label"/>
+                                <field name="farm_broiler_meat_location_id" class="col-lg-6" options="{'no_create': True}"/>
+                            </div>
+                        </div>
+                    </setting>
                 </block>
             </xpath>
         </field>

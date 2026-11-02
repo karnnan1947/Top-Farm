@@ -44,6 +44,11 @@
             </xpath>
 
             <!-- Poultry Farm Infrastructure & Analytics Group -->
+            <!-- A Broiler Cost Pool keeps the capitalized broiler costs: set on the virtual (inventory) location -->
+            <xpath expr="//field[@name='valuation_account_id']" position="after">
+                <field name="farm_broiler_cost_pool" invisible="usage != 'inventory'"
+                       groups="top_farm_core.group_farm_manager"/>
+            </xpath>
             <xpath expr="//div[hasclass('oe_location_header')]" position="after">
                 <group name="top_farm_group" string="Poultry Farm Infrastructure"
                        groups="top_farm_core.group_farm_user">
@@ -52,11 +57,11 @@
                         <field name="farm_code" invisible="farm_hierarchy_level != 'farm'"
                                required="farm_hierarchy_level == 'farm'" placeholder="e.g. IHL"/>
                         <field name="parent_farm_location_id"
-                               invisible="farm_hierarchy_level not in ('brooding', 'shed', 'cage')"/>
+                               invisible="farm_hierarchy_level not in ('brooding', 'shed', 'cage', 'broiler_shed')"/>
                         <field name="farm_analytic_account_id"
                                invisible="farm_hierarchy_level != 'cage'"/>
                     </group>
-                    <group invisible="farm_hierarchy_level not in ('brooding', 'cage')">
+                    <group invisible="farm_hierarchy_level not in ('brooding', 'broiler_shed', 'cage')">
                         <field name="flock_lot_ids" widget="many2many_tags" readonly="1"/>
                     </group>
                 </group>
@@ -76,7 +81,8 @@
                        decoration-info="farm_hierarchy_level == 'farm'"
                        decoration-warning="farm_hierarchy_level == 'brooding'"
                        decoration-muted="farm_hierarchy_level == 'shed'"
-                       decoration-success="farm_hierarchy_level == 'cage'"/>
+                       decoration-success="farm_hierarchy_level == 'cage'"
+                       decoration-primary="farm_hierarchy_level == 'broiler_shed'"/>
                 <field name="farm_code" optional="show"/>
                 <field name="parent_farm_location_id" optional="show"/>
                 <field name="flock_lot_ids" widget="many2many_tags"/>
@@ -103,6 +109,7 @@
                 <filter string="Brooding Nurseries" name="filter_brooding" domain="[('farm_hierarchy_level', '=', 'brooding')]"/>
                 <filter string="Laying Sheds" name="filter_shed" domain="[('farm_hierarchy_level', '=', 'shed')]"/>
                 <filter string="Cages" name="filter_cage" domain="[('farm_hierarchy_level', '=', 'cage')]"/>
+                <filter string="Broiler Sheds" name="filter_broiler_shed" domain="[('farm_hierarchy_level', '=', 'broiler_shed')]"/>
             </xpath>
             <!-- Odoo 20 search <group> takes no expand/string attributes: reuse core's Group By block -->
             <xpath expr="//search/group" position="inside">
@@ -126,7 +133,8 @@
             </p>
             <p>
                 Build the permanent infrastructure of each estate: the Farm Facility (with its estate code),
-                its Brooding Nurseries, and its Laying Sheds and Cages. Flocks are lots that move through them.
+                its Brooding Nurseries, its Laying Sheds and Cages, and its Broiler Sheds. Flocks are lots that
+                move through them.
             </p>
         </field>
     </record>

@@ -25,8 +25,32 @@ class ResCompany(models.Model):
     farm_flock_analytic_plan_id = fields.Many2one(
         'account.analytic.plan', string='Flock Analytic Plan',
         help="Plan of the flock analytic accounts. Cage analytic accounts must belong to another root plan.")
+    farm_broiler_cost_location_id = fields.Many2one(
+        'stock.location', string='Broiler Cost Pool Location',
+        domain="[('usage', '=', 'inventory')]",
+        help="Virtual location receiving the feed, medication and dead birds of broiler batches, so that their "
+             "cost stays capitalized in the batch until harvest. Give it a current asset valuation account.")
+
+    def write(self, vals):
+        res = super().write(vals)
+        if vals.get('farm_broiler_cost_location_id'):
+            self.farm_broiler_cost_location_id.sudo().farm_broiler_cost_pool = True
+        return res
 
     def _get_farm_flock_plan(self):
         self.ensure_one()
         return self.farm_flock_analytic_plan_id or self.env.ref(
             'top_farm_core.analytic_plan_flock_batches', raise_if_not_found=False)
+
+    def _get_farm_broiler_cost_location(self):
+        """The company's Broiler Cost Pool location, created on first use (without a valuation account: the
+        accountant gives it one, otherwise the capitalized costs are tracked in stock only)."""
+        self.ensure_one()
+        if not self.farm_broiler_cost_location_id:
+            Location = self.env['stock.location'].sudo()
+            location = Location.search([('farm_broiler_cost_pool', '=', True), ('usage', '=', 'inventory'),
+                                        ('company_id', 'in', [self.id, False])], limit=1) \
+                or Location.create({'name': 'Broiler Rearing Costs', 'usage': 'inventory', 'company_id': self.id,
+                                    'farm_broiler_cost_pool': True})
+            self.sudo().farm_broiler_cost_location_id = location
+        return self.farm_broiler_cost_location_id

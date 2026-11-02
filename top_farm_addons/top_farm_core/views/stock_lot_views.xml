@@ -27,7 +27,15 @@
                             invisible="flock_stage != 'laying'"
                             confirm="Move this flock back to Rearing / Pre-Laying? New feed logs will be expensed at once instead of staged."
                             groups="top_farm_core.group_farm_manager"/>
-                    <field name="flock_stage" widget="statusbar" statusbar_visible="brooding,rearing,laying,spent"/>
+                    <button name="action_close_broiler_batch" string="Close Batch" type="object"
+                            invisible="flock_stage != 'growing' or live_bird_count"
+                            confirm="Close this broiler batch? Any batch cost that no harvest released is expensed."
+                            groups="top_farm_core.group_farm_manager"/>
+                    <field name="flock_type" invisible="1"/>
+                    <field name="flock_stage" widget="statusbar" statusbar_visible="brooding,rearing,laying,spent"
+                           invisible="flock_type == 'broiler'"/>
+                    <field name="flock_stage" widget="statusbar" statusbar_visible="growing,spent"
+                           invisible="flock_type != 'broiler'"/>
                 </header>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
@@ -42,9 +50,11 @@
                        groups="top_farm_core.group_farm_user">
                     <group>
                         <field name="is_flock_batch"/>
+                        <field name="flock_type" invisible="not is_flock_batch"/>
                         <field name="farm_location_id" invisible="not is_flock_batch" options="{'no_create': True}"/>
                         <field name="farm_arrival_date"/>
-                        <field name="flock_age_weeks" invisible="not farm_arrival_date"/>
+                        <field name="flock_age_weeks" invisible="not farm_arrival_date or flock_type == 'broiler'"/>
+                        <field name="flock_age_days" invisible="not farm_arrival_date or flock_type != 'broiler'"/>
                         <field name="flock_analytic_account_id" invisible="not is_flock_batch"
                                groups="analytic.group_analytic_accounting"/>
                         <field name="farm_source_lot_id" invisible="not farm_source_lot_id"/>
@@ -61,6 +71,28 @@
                         <field name="depletion_date" invisible="not depletion_date"/>
                     </group>
                 </group>
+                <!-- Broiler batch: pre-sale commercial planning from the supervisor's weight samples -->
+                <group name="broiler_group" string="Broiler Batch - Pre-Sale Estimate"
+                       invisible="not is_flock_batch or flock_type != 'broiler'"
+                       groups="top_farm_core.group_farm_user">
+                    <group>
+                        <field name="broiler_avg_weight" readonly="flock_stage != 'growing'"/>
+                        <field name="broiler_estimated_biomass"/>
+                        <field name="broiler_market_rate" readonly="flock_stage != 'growing'"
+                               groups="top_farm_core.group_farm_manager"/>
+                        <field name="broiler_estimated_value" groups="top_farm_core.group_farm_manager"/>
+                    </group>
+                    <group groups="top_farm_core.group_farm_manager">
+                        <field name="broiler_batch_cost"/>
+                        <field name="broiler_remaining_cost"/>
+                        <field name="broiler_cost_per_bird"/>
+                        <field name="broiler_cost_per_kg"/>
+                        <field name="broiler_estimated_margin"
+                               decoration-danger="broiler_estimated_margin &lt; 0"
+                               decoration-success="broiler_estimated_margin &gt; 0"/>
+                        <field name="broiler_written_off_cost" invisible="not broiler_written_off_cost"/>
+                    </group>
+                </group>
             </xpath>
         </field>
     </record>
@@ -72,12 +104,14 @@
         <field name="arch" type="xml">
             <list string="Flock Batches" create="false">
                 <field name="name" decoration-bf="1"/>
+                <field name="flock_type" optional="show"/>
                 <field name="farm_location_id"/>
                 <field name="product_id" optional="show"/>
                 <field name="flock_stage" widget="badge"
                        decoration-warning="flock_stage == 'brooding'"
                        decoration-primary="flock_stage == 'rearing'"
                        decoration-success="flock_stage == 'laying'"
+                       decoration-info="flock_stage == 'growing'"
                        decoration-muted="flock_stage == 'spent'"/>
                 <field name="farm_arrival_date"/>
                 <field name="flock_age_weeks"/>
@@ -103,14 +137,19 @@
                 <separator/>
                 <filter string="Flock Batches" name="filter_flock" domain="[('is_flock_batch', '=', True)]"/>
                 <separator/>
-                <filter string="Active Flocks" name="filter_flock_active" domain="[('flock_stage', 'in', ('brooding', 'rearing', 'laying'))]"/>
+                <filter string="Layer Flocks" name="filter_layer" domain="[('flock_type', '=', 'layer')]"/>
+                <filter string="Broiler Batches" name="filter_broiler" domain="[('flock_type', '=', 'broiler')]"/>
+                <separator/>
+                <filter string="Active Flocks" name="filter_flock_active" domain="[('flock_stage', 'in', ('brooding', 'rearing', 'laying', 'growing'))]"/>
                 <filter string="Brooding" name="filter_brooding" domain="[('flock_stage', '=', 'brooding')]"/>
                 <filter string="Rearing / Pre-Laying" name="filter_rearing" domain="[('flock_stage', '=', 'rearing')]"/>
                 <filter string="Laying" name="filter_laying" domain="[('flock_stage', '=', 'laying')]"/>
+                <filter string="Growing (Broiler)" name="filter_growing" domain="[('flock_stage', '=', 'growing')]"/>
                 <filter string="Spent" name="filter_spent" domain="[('flock_stage', '=', 'spent')]"/>
             </xpath>
             <xpath expr="//filter[@name='group_by_product']" position="before">
                 <filter name="group_by_farm" string="Farm Estate" context="{'group_by': 'farm_location_id'}"/>
+                <filter name="group_by_flock_type" string="Flock Type" context="{'group_by': 'flock_type'}"/>
                 <filter name="group_by_flock_stage" string="Flock Stage" context="{'group_by': 'flock_stage'}"/>
             </xpath>
         </field>
@@ -129,7 +168,8 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No flock yet</p>
             <p>A flock lot is created when day-old chicks are dispatched from the main warehouse to an
-               estate's brooding nursery: entered by the clerk, or generated as [Estate Code]-[Date].</p>
+               estate's brooding nursery: entered by the clerk, or generated as [Estate Code]-[Date].
+               Broiler chicks placed in a broiler shed start a batch numbered BR-BATCH-[Year]-[NNN].</p>
         </field>
     </record>
 </odoo>

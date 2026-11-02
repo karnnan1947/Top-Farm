@@ -1,8 +1,8 @@
 """SQL building blocks shared by the farm reporting views. Reporting is flock-first: every revenue and cost row
 carries the flock lot, and the cage (or brooding nursery) is a second level under it."""
 
-# Invoiced sales of the flock: graded eggs (through the egg lot's parent flock) and live birds such as spent hens
-# (the delivered lot is the flock itself). Egg revenue is shared between the cages by their egg counts.
+# Invoiced sales of the flock: graded eggs and broiler meat (through the lot's parent flock) and live birds such as
+# spent hens (the delivered lot is the flock itself). Egg revenue is shared between the cages by their egg counts.
 REVENUE_CTES = """
 inv AS (
     SELECT * FROM (
@@ -10,6 +10,7 @@ inv AS (
                aml.quantity * (CASE WHEN am.move_type = 'out_refund' THEN -1 ELSE 1 END) AS inv_qty,
                sol.id AS sol_id,
                CASE WHEN pt.is_farm_bird THEN 'spent_hen'
+                    WHEN sol.product_id = rc.farm_broiler_meat_product_id THEN 'broiler_meat'
                     WHEN sol.product_id = rc.farm_egg_large_product_id THEN 'large'
                     WHEN sol.product_id = rc.farm_egg_medium_product_id THEN 'medium'
                     WHEN sol.product_id = rc.farm_egg_jumbo_product_id THEN 'jumbo'
@@ -29,7 +30,7 @@ inv AS (
 delivered AS (
     -- birds delivered straight from a cage (spent hens) keep that cage, so their revenue meets their cost there
     SELECT sm.sale_line_id AS sol_id, sml.lot_id,
-           CASE WHEN src.farm_hierarchy_level IN ('brooding', 'cage') THEN src.id END AS house_id,
+           CASE WHEN src.farm_hierarchy_level IN ('brooding', 'broiler_shed', 'cage') THEN src.id END AS house_id,
            SUM(CASE WHEN dst.usage = 'customer' THEN sml.quantity
                     WHEN src.usage = 'customer' THEN -sml.quantity ELSE 0 END) AS qty
       FROM stock_move_line sml
@@ -60,9 +61,10 @@ rev AS (
     SELECT il.aml_id, il.date, il.company_id, il.flock_id AS flock_lot_id, flock.farm_location_id,
            COALESCE(ec.cage_location_id, il.house_id) AS cage_location_id, il.production_date, il.grade, il.product_id,
            il.revenue * il.lot_share * COALESCE(ec.qty::float / ec.flock_qty, 1.0) AS revenue,
-           CASE WHEN il.grade = 'spent_hen' THEN 0
+           CASE WHEN il.grade IN ('spent_hen', 'broiler_meat') THEN 0
                 ELSE il.inv_qty * il.lot_share * COALESCE(ec.qty::float / ec.flock_qty, 1.0) END AS eggs_sold,
-           CASE WHEN il.grade = 'spent_hen' THEN il.inv_qty * il.lot_share ELSE 0 END AS birds_sold
+           CASE WHEN il.grade = 'spent_hen' THEN il.inv_qty * il.lot_share ELSE 0 END AS birds_sold,
+           CASE WHEN il.grade = 'broiler_meat' THEN il.inv_qty * il.lot_share ELSE 0 END AS meat_sold
       FROM inv_lot il
       JOIN stock_lot flock ON flock.id = il.flock_id
       LEFT JOIN egg_cage ec ON ec.flock_lot_id = il.flock_id
@@ -80,8 +82,9 @@ def plan_columns(env):
 def cost_ctes(env):
     """`costs`: every analytic cost line of a flock or cage account, with its flock, cage, farm and cost type:
     feed, medication, mortality (bird scraps and their reversals), depletion (birds leaving otherwise, e.g.
-    spent hens sold) or other (heating, labour and other bills tagged to the flock). Revenue lines are left out:
-    egg and spent hen revenue come from the invoices through the delivered lots (REVENUE_CTES)."""
+    spent hens sold, broilers harvested) or other (heating, labour and other bills tagged to the flock). Revenue
+    lines are left out: egg, meat and spent hen revenue come from the invoices through the delivered lots
+    (REVENUE_CTES)."""
     cols = ', '.join(f'aal.{c}' for c in plan_columns(env))
     return f"""
 line_acc AS (

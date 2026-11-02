@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Mortality - Poultry Loss Tracking & Approvals',
-    'version': '20.0.2.0.0',
+    'version': '20.0.2.1.0',
     'category': 'Inventory/Poultry',
     'summary': 'Daily mortality logging with live-stock guard, cumulative daily approval threshold, and automated scrap',
     'description': """
@@ -12,6 +12,7 @@ Built on top_farm_core (farm infrastructure, flock lots, Farm Bird flag, live bi
 - Anti-bypass cumulative daily threshold on the opening population; manager approval above it.
 - Automated scrap move (is_scrap) charged to the Flock analytic account (and the Cage account in a cage).
 - Manager reject (mandatory reason) and reverse (mandatory reason).
+- Broiler sheds: dead broilers join the batch's Broiler Cost Pool; the survivors absorb their cost.
     """,
     'author': 'Top Farm ERP Team',
     'depends': ['top_farm_core'],

@@ -21,3 +21,8 @@ class ResConfigSettings(models.TransientModel):
         related='company_id.farm_flock_analytic_plan_id',
         readonly=False,
     )
+    farm_broiler_cost_location_id = fields.Many2one(
+        related='company_id.farm_broiler_cost_location_id',
+        readonly=False,
+        domain="[('usage', '=', 'inventory'), ('company_id', 'in', [company_id, False])]",
+    )

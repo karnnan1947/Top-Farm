@@ -8,14 +8,15 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_investment_report" type="object" class="oe_stat_button" icon="payments"
-                        invisible="not is_flock_batch"
+                        invisible="not is_flock_batch or flock_type == 'broiler'"
                         groups="top_farm_core.group_farm_manager,account.group_account_invoice">
                     <field name="investment_cost_per_bird" widget="statinfo" string="Invested / Bird"/>
                 </button>
             </xpath>
             <xpath expr="//group[@name='flock_group']" position="after">
+                <!-- A broiler batch shows its own batch costing (top_farm_core) instead -->
                 <group name="flock_investment" string="Pre-Laying Flock Investment"
-                       invisible="not is_flock_batch"
+                       invisible="not is_flock_batch or flock_type == 'broiler'"
                        groups="top_farm_core.group_farm_manager,account.group_account_invoice">
                     <field name="investment_summary" nolabel="1" colspan="2" readonly="1"/>
                 </group>
