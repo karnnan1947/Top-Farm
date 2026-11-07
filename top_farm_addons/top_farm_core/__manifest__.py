@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Top Farm Core - Flock Lots, Farm Infrastructure & Analytics',
-    'version': '20.0.2.2.0',
+    'version': '20.0.2.2.1',
     'category': 'Poultry Farm Operations',
     'summary': 'Permanent farm infrastructure, flock batches as lots, brooding-to-cage allocation and flock analytics',
     'description': """

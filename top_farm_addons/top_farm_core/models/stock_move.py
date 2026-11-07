@@ -334,12 +334,17 @@ class StockMove(models.Model):
         moves._action_done()
         if any(move.state != 'done' for move in moves):
             raise UserError(_("The chicks of lot %s could not be re-labelled as their flock lot.", source_lot.name))
+        incoming_cost = 0.0
         if moves and len(moves) == 2:
-            if not moves[1].value and moves[0].value:
-                moves[1].value = abs(moves[0].value)
-                if not moves[1].price_unit and qty:
-                    moves[1].price_unit = moves[1].value / qty
-        chick_cost = moves[1].value or (abs(moves[0].value) if moves and moves[0].value else (price_unit * qty))
+            incoming_cost = abs(moves[0].value) if moves[0].value else (abs(self.value) if self.value else (price_unit * qty))
+            moves[1].value = incoming_cost
+            if hasattr(moves[1], 'remaining_value') and moves[1].remaining_value:
+                moves[1].remaining_value = incoming_cost
+            if qty:
+                moves[1].price_unit = incoming_cost / qty
+            chick_cost = incoming_cost
+        else:
+            chick_cost = abs(self.value) if self.value else (price_unit * qty)
         values = {
             'is_flock_batch': True,
             'initial_bird_count': flock.initial_bird_count + round(qty),
