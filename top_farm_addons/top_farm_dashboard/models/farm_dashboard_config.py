@@ -53,7 +53,7 @@ class FarmDashboardConfig(models.Model):
             # Costs reach the profitability and investment reports through the analytic accounts: without one a
             # flock or cage is silently absent from them (it still shows in the Feed Consumption report).
             flocks = self.env['stock.lot'].sudo().search([
-                ('is_flock_batch', '=', True), ('flock_stage', '!=', 'spent'),
+                ('is_flock_batch', '=', True), ('flock_stage', 'not in', ('spent', 'closed')),
                 ('flock_analytic_account_id', '=', False), ('company_id', 'in', [cfg.company_id.id, False])])
             if flocks:
                 lines.append(_("%(count)s active flock(s) have no Flock Analytic Account, so their costs are not in "

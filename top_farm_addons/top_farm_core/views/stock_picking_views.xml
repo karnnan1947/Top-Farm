@@ -15,7 +15,7 @@
                 <field name="farm_flock_lot_id" string="Flock Lot"
                        column_invisible="not parent.farm_show_flock_lot"
                        readonly="state in ('done', 'cancel')"
-                       domain="[('is_flock_batch', '=', True)] + ([('product_id', '=', product_id)] if parent.farm_to_brooding else [('flock_stage', '!=', 'spent')])"
+                       domain="[('is_flock_batch', '=', True)] + ([('product_id', '=', product_id)] if parent.farm_to_brooding else [('flock_stage', 'not in', ('spent', 'closed'))])"
                        context="{'default_product_id': product_id, 'default_is_flock_batch': True}"
                        placeholder="e.g. IHL-19-10-2026"/>
                 <field name="farm_location_id" string="Farm House" optional="show"

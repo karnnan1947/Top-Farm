@@ -18,12 +18,13 @@ class FarmRevenueAllocation(models.Model):
     production_date = fields.Date(string='Egg Production Date', readonly=True)
     grade = fields.Selection([('medium', 'Medium'), ('large', 'Large'), ('jumbo', 'Jumbo'),
                               ('damage', 'Damaged / Cracked'), ('spent_hen', 'Spent Hens'),
+                              ('layer_meat', 'Culled Hens (Layer Live Weight)'),
                               ('broiler_meat', 'Broiler Meat')],
                              string='Egg Grade / Birds', readonly=True)
     product_id = fields.Many2one('product.product', readonly=True)
     eggs_sold = fields.Float(string='Eggs Sold', readonly=True, digits=(16, 2))
     birds_sold = fields.Float(string='Birds Sold', readonly=True, digits=(16, 2))
-    meat_sold = fields.Float(string='Broiler Meat Sold (kg)', readonly=True, digits=(16, 2))
+    meat_sold = fields.Float(string='Meat Sold (kg)', readonly=True, digits=(16, 2))
     revenue = fields.Monetary(string='Allocated Revenue', currency_field='currency_id', readonly=True)
 
     def init(self):

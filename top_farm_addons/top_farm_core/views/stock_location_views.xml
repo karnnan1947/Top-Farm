@@ -7,12 +7,14 @@
         <field name="inherit_id" ref="stock.view_location_form"/>
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="before">
-                <header groups="top_farm_core.group_farm_manager" invisible="farm_hierarchy_level != 'brooding'">
+                <!-- shown on brooding nurseries and cages: top_farm_operations adds the cage culling button -->
+                <header groups="top_farm_core.group_farm_manager"
+                        invisible="farm_hierarchy_level not in ('brooding', 'cage')">
                     <button name="action_allocate_birds"
                             string="Allocate Flock to Cages"
                             type="object"
                             class="oe_highlight"
-                            invisible="not flock_lot_ids"/>
+                            invisible="farm_hierarchy_level != 'brooding' or not flock_lot_ids"/>
                 </header>
             </xpath>
 

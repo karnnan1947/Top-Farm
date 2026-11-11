@@ -4,33 +4,45 @@
         <field name="name">farm.broiler.harvest.wizard.form</field>
         <field name="model">farm.broiler.harvest.wizard</field>
         <field name="arch" type="xml">
-            <form string="Record Broiler Harvest &amp; Meat Conversion">
+            <form string="Bird Harvest &amp; Meat Conversion">
                 <field name="company_id" invisible="1"/>
                 <field name="currency_id" invisible="1"/>
                 <field name="shed_location_ids" invisible="1"/>
+                <field name="flock_type" invisible="1"/>
                 <group>
                     <group string="Harvest / Bird Pickup">
                         <field name="flock_lot_id"/>
                         <field name="location_id" options="{'no_create': True}"/>
                         <field name="available_birds"/>
-                        <field name="birds_count"/>
+                        <field name="birds_count" string="Birds Harvested (Qty)" invisible="flock_type == 'layer'"/>
+                        <field name="birds_count" string="Birds Culled (Qty)" invisible="flock_type != 'layer'"/>
                         <field name="average_weight"/>
                         <field name="total_weight_kg"/>
                         <field name="net_average_weight"/>
                     </group>
                     <group string="Meat Production &amp; Valuation">
-                        <field name="harvest_cost"/>
+                        <field name="harvest_cost" string="Batch Cost of These Birds" invisible="flock_type == 'layer'"/>
+                        <field name="harvest_cost" string="Stock Value of These Hens" invisible="flock_type != 'layer'"/>
                         <field name="cost_per_kg"/>
+                        <field name="remaining_house_birds"/>
                         <field name="remaining_birds"/>
                     </group>
                 </group>
-                <div class="alert alert-info" role="status" invisible="remaining_birds or not birds_count">
+                <div class="alert alert-info" role="status"
+                     invisible="flock_type == 'layer' or remaining_birds or not birds_count">
                     These are the last birds of the batch: it is closed once the harvest is recorded.
                 </div>
-                <p class="text-muted">A conversion manufacturing order converts the harvested birds (units) into broiler meat (kg) in stock, carrying the accumulated batch cost. Sales orders are created separately from the Sales module.</p>
+                <div class="alert alert-info" role="status"
+                     invisible="flock_type != 'layer' or remaining_birds or not birds_count">
+                    These are the last hens of the flock: it becomes Spent / Depleted once the culling is recorded.
+                </div>
+                <p class="text-muted" invisible="flock_type == 'layer'">A conversion manufacturing order converts the harvested birds (units) into broiler meat (kg) in stock, carrying the accumulated batch cost. A first partial harvest moves the batch to Harvesting. Sales orders are created separately from the Sales module.</p>
+                <p class="text-muted" invisible="flock_type != 'layer'">A conversion manufacturing order converts the culled hens (units) into Layer Live Weight (kg) in stock, at the stock value of the hens, under a CULL lot of the flock. The hens left in the cage keep laying. Sales orders are created separately from the Sales module.</p>
                 <footer>
                     <button name="action_confirm_harvest" string="Confirm Harvest &amp; Produce Meat" type="object"
-                            class="btn-primary"/>
+                            class="btn-primary" invisible="flock_type == 'layer'"/>
+                    <button name="action_confirm_harvest" string="Confirm Culling &amp; Produce Live Weight" type="object"
+                            class="btn-primary" invisible="flock_type != 'layer'"/>
                     <button string="Cancel" special="cancel"/>
                 </footer>
             </form>

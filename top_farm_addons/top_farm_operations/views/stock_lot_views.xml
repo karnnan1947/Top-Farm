@@ -6,8 +6,14 @@
         <field name="inherit_id" ref="top_farm_core.view_production_lot_form_top_farm"/>
         <field name="arch" type="xml">
             <xpath expr="//header/button[@name='action_close_broiler_batch']" position="before">
+                <!-- Broiler batch: harvest in Growing and Harvesting only (never in Brooding) -->
                 <button name="action_open_broiler_harvest_wizard" string="Harvest Broilers" type="object"
-                        class="oe_highlight" invisible="flock_stage != 'growing' or not live_bird_count"
+                        class="oe_highlight"
+                        invisible="flock_type != 'broiler' or flock_stage not in ('growing', 'harvesting') or not live_bird_count"
+                        groups="top_farm_core.group_farm_manager"/>
+                <!-- Layer flock: cull all or part of the hens into Layer Live Weight (kg) -->
+                <button name="action_open_broiler_harvest_wizard" string="Cull / Harvest Hens" type="object"
+                        invisible="flock_type != 'layer' or flock_stage not in ('laying', 'spent') or not live_bird_count"
                         groups="top_farm_core.group_farm_manager"/>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
@@ -15,7 +21,7 @@
                         string="Feed Logs" invisible="not is_flock_batch" groups="top_farm_core.group_farm_user"/>
                 <button name="action_view_broiler_harvests" type="object" class="oe_stat_button" icon="scale"
                         invisible="not broiler_harvest_count" groups="top_farm_core.group_farm_manager">
-                    <field name="broiler_harvest_count" widget="statinfo" string="Harvests"/>
+                    <field name="broiler_harvest_count" widget="statinfo" string="Meat Harvests"/>
                 </button>
                 <button name="action_view_egg_collections" type="object" class="oe_stat_button" icon="shopping_basket"
                         string="Egg Collections"
@@ -45,6 +51,21 @@
                                decoration-danger="broiler_gross_margin &lt; 0"
                                decoration-success="broiler_gross_margin &gt; 0"/>
                         <field name="broiler_margin_pct"/>
+                    </group>
+                </group>
+            </xpath>
+            <!-- Layer flock: hens culled into Layer Live Weight -->
+            <xpath expr="//group[@name='broiler_harvest_group']" position="after">
+                <group name="layer_cull_group" string="Culled Hens - Live Weight Harvests"
+                       invisible="not is_flock_batch or flock_type != 'layer' or not broiler_harvest_count"
+                       groups="top_farm_core.group_farm_user">
+                    <group>
+                        <field name="broiler_harvested_birds" string="Hens Culled"/>
+                        <field name="broiler_harvested_weight" string="Live Weight Produced (kg)"/>
+                        <field name="broiler_harvest_avg_weight" string="Avg Culling Weight (kg)"/>
+                    </group>
+                    <group groups="top_farm_core.group_farm_manager">
+                        <field name="broiler_released_cost" string="Hen Stock Value Converted"/>
                     </group>
                 </group>
             </xpath>

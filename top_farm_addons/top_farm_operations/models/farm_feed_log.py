@@ -28,7 +28,7 @@ class FarmFeedLog(models.Model):
     flock_lot_id = fields.Many2one(
         'stock.lot', string='Flock Lot', required=True, tracking=True, index=True,
         compute='_compute_flock_lot', store=True, readonly=False, precompute=True,
-        domain="[('is_flock_batch', '=', True), ('flock_stage', '!=', 'spent'), ('quant_ids.location_id', '=?', location_id)]",
+        domain="[('is_flock_batch', '=', True), ('flock_stage', 'not in', ('spent', 'closed')), ('quant_ids.location_id', '=?', location_id)]",
         help="Flock fed. Filled with the flock living in the brooding nursery or cage; its analytic account "
              "carries the cost."
     )

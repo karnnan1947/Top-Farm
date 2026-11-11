@@ -277,12 +277,13 @@ class StockMove(models.Model):
         })
 
     def _farm_generate_broiler_batch(self, shed, source_lot):
-        """Approach B for broilers: a shed is filled all-in, so chicks of the same arrival joining a growing batch
-        already in the shed are part of it; otherwise a new batch is numbered from the broiler batch sequence."""
+        """Approach B for broilers: a shed is filled all-in, so chicks of the same arrival joining a batch already
+        in the shed (not yet harvested) are part of it; otherwise a new batch is numbered from the broiler batch
+        sequence."""
         self.ensure_one()
         arrival = source_lot.farm_arrival_date or fields.Date.context_today(self, self.date)
         batch = shed._get_flock_lots().filtered(
-            lambda lot: lot.product_id == self.product_id and lot.flock_stage == 'growing'
+            lambda lot: lot.product_id == self.product_id and lot.flock_stage in ('brooding', 'growing')
             and lot.farm_arrival_date == arrival)[:1]
         if batch:
             return batch

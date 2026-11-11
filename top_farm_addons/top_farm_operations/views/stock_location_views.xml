@@ -5,9 +5,28 @@
         <field name="model">stock.location</field>
         <field name="inherit_id" ref="top_farm_core.view_location_form_top_farm"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='farm_code']" position="after">
-                <field name="farm_egg_location_id" invisible="farm_hierarchy_level != 'farm'"
-                       options="{'no_create': True}"/>
+            <!-- Cage: cull all or part of its hens into Layer Live Weight (kg) -->
+            <xpath expr="//header/button[@name='action_allocate_birds']" position="after">
+                <button name="action_open_cull_wizard" string="Cull Birds to Meat" type="object"
+                        invisible="farm_hierarchy_level != 'cage' or live_bird_count &lt;= 0"/>
+            </xpath>
+            <!-- Each cage maps the warehouse location its eggs are produced into -->
+            <xpath expr="//field[@name='farm_analytic_account_id']" position="after">
+                <field name="farm_egg_location_id" invisible="farm_hierarchy_level != 'cage'"
+                       groups="top_farm_core.group_farm_manager"
+                       context="{'default_usage': 'internal'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Farm Infrastructure list: every cage-to-egg-location mapping on one screen -->
+    <record id="view_location_tree_top_farm_operations" model="ir.ui.view">
+        <field name="name">stock.location.list.top_farm.operations</field>
+        <field name="model">stock.location</field>
+        <field name="inherit_id" ref="top_farm_core.view_location_tree_top_farm"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='farm_analytic_account_id']" position="after">
+                <field name="farm_egg_location_id" optional="show"/>
             </xpath>
         </field>
     </record>

@@ -5,23 +5,32 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import format_amount, formatLang
 
+# A broiler batch is harvested once Growing (never in Brooding); the hens of a layer flock are culled into meat
+# while it is Laying, or once it is Spent.
+BROILER_HARVEST_STAGES = ('growing', 'harvesting')
+LAYER_CULL_STAGES = ('laying', 'spent')
+
 
 class FarmBroilerHarvestWizard(models.TransientModel):
     _name = 'farm.broiler.harvest.wizard'
-    _description = 'Broiler Harvest & Meat Conversion Wizard'
+    _description = 'Bird Harvest & Meat Conversion Wizard (broiler harvest, layer culling)'
 
     flock_lot_id = fields.Many2one(
-        'stock.lot', string='Broiler Batch', required=True, readonly=True,
-        domain="[('flock_type', '=', 'broiler'), ('flock_stage', '=', 'growing')]")
+        'stock.lot', string='Flock / Batch', required=True, readonly=True,
+        domain="[('is_flock_batch', '=', True), "
+               "'|', '&', ('flock_type', '=', 'broiler'), ('flock_stage', 'in', ('growing', 'harvesting')), "
+               "'&', ('flock_type', '=', 'layer'), ('flock_stage', 'in', ('laying', 'spent'))]")
+    flock_type = fields.Selection(related='flock_lot_id.flock_type')
     company_id = fields.Many2one('res.company', compute='_compute_company_id')
     currency_id = fields.Many2one('res.currency', compute='_compute_company_id')
     shed_location_ids = fields.Many2many('stock.location', compute='_compute_shed_location_ids')
     location_id = fields.Many2one(
-        'stock.location', string='Broiler Shed', required=True, domain="[('id', 'in', shed_location_ids)]",
-        help="Shed the birds are picked up from.")
+        'stock.location', string='Broiler Shed / Layer Cage', required=True,
+        domain="[('id', 'in', shed_location_ids)]",
+        help="Broiler shed or layer cage the birds are picked up from.")
     available_birds = fields.Integer(
         string='Live Birds Available', compute='_compute_available_birds',
-        help="Free live birds of the batch in the shed.")
+        help="Free live birds of the flock in the shed or cage.")
     birds_count = fields.Integer(string='Birds Harvested (Qty)', required=True)
     average_weight = fields.Float(
         string='Average Weight (kg)', digits=(16, 3), required=True,
@@ -34,11 +43,13 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         string='Actual Avg Weight (kg)', digits=(16, 3), compute='_compute_net_average_weight',
         help="Total net weight / birds harvested.")
     harvest_cost = fields.Monetary(
-        string='Batch Cost of These Birds', currency_field='currency_id', compute='_compute_amounts',
-        help="Their share of the batch value in the shed (chicks plus capitalized feed, medication and "
-             "mortality): it becomes the stock value of the meat.")
+        string='Cost of These Birds', currency_field='currency_id', compute='_compute_amounts',
+        help="Broiler batch: their share of the batch value in the shed (chicks plus capitalized feed, medication "
+             "and mortality). Layer flock: the stock value of the hens culled. It becomes the stock value of the "
+             "meat.")
     cost_per_kg = fields.Monetary(string='Meat Cost / kg', currency_field='currency_id', compute='_compute_amounts')
-    remaining_birds = fields.Integer(string='Birds Left in Batch', compute='_compute_amounts')
+    remaining_birds = fields.Integer(string='Birds Left in Flock', compute='_compute_amounts')
+    remaining_house_birds = fields.Integer(string='Birds Left in This Shed / Cage', compute='_compute_amounts')
 
     # Optional fields preserved for backward compatibility
     partner_id = fields.Many2one('res.partner', string='Customer / Buyer', required=False)
@@ -53,10 +64,13 @@ class FarmBroilerHarvestWizard(models.TransientModel):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         lot = self.env['stock.lot'].browse(res.get('flock_lot_id'))
-        if lot.exists() and not res.get('location_id'):
-            sheds = lot.flock_location_ids
-            if len(sheds) == 1:
-                res['location_id'] = sheds.id
+        if lot.exists():
+            houses = lot.flock_location_ids
+            # launched from a cage: that cage, when the flock really lives in it
+            if res.get('location_id') and res['location_id'] not in houses.ids:
+                res.pop('location_id')
+            if not res.get('location_id') and len(houses) == 1:
+                res['location_id'] = houses.id
         return res
 
     @api.depends('flock_lot_id')
@@ -88,7 +102,7 @@ class FarmBroilerHarvestWizard(models.TransientModel):
             wizard.net_average_weight = round(wizard.total_weight_kg / wizard.birds_count, 3) \
                 if wizard.birds_count else 0.0
 
-    @api.depends('flock_lot_id', 'birds_count', 'total_weight_kg', 'price_per_kg')
+    @api.depends('flock_lot_id', 'location_id', 'birds_count', 'total_weight_kg', 'price_per_kg')
     def _compute_amounts(self):
         for wizard in self:
             sale = wizard.total_weight_kg * wizard.price_per_kg if wizard.price_per_kg else 0.0
@@ -98,50 +112,77 @@ class FarmBroilerHarvestWizard(models.TransientModel):
             wizard.cost_per_kg = cost / wizard.total_weight_kg if wizard.total_weight_kg else 0.0
             wizard.estimated_margin = sale - cost if sale else 0.0
             wizard.remaining_birds = max(wizard.flock_lot_id._origin.live_bird_count - wizard.birds_count, 0)
+            wizard.remaining_house_birds = max(wizard.available_birds - wizard.birds_count, 0)
 
     def _get_harvest_cost(self):
-        """(batch cost, Broiler Cost Pool share) of the birds harvested: their share of the batch value in the
-        shed and of its pool, by bird count. The last birds of the batch take all of it."""
+        """(cost, Broiler Cost Pool share) of the birds harvested, by bird count.
+        Broiler batch: their share of the batch value in the shed and of its pool; the last birds of the batch
+        take all of it. Layer flock: the stock value of the hens culled and no pool (the feed of a layer flock is
+        expensed or consumed by its eggs, never capitalized in the birds)."""
         self.ensure_one()
         lot = self.flock_lot_id._origin
         live = lot.live_bird_count if lot else 0
         if not live or self.birds_count <= 0:
             return 0.0, 0.0
-        batch = lot._get_broiler_cost_figures()[lot.id]
         share = min(self.birds_count / live, 1.0)
         currency = self.currency_id
+        if lot.flock_type != 'broiler':
+            product = lot.product_id.with_company(self.company_id)
+            if product.lot_valuated:
+                live_value = lot.sudo().with_company(self.company_id).total_value
+            else:
+                live_value = product.standard_price * live
+            return currency.round(live_value * share), 0.0
+        batch = lot._get_broiler_cost_figures()[lot.id]
         return currency.round(batch['remaining'] * share), currency.round(batch['pool'] * share)
 
     # ------------------------------------------------------------------ harvest
     def action_confirm_harvest(self):
         self.ensure_one()
         lot = self.flock_lot_id
+        layer = lot.flock_type == 'layer'
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
-            raise AccessError(_("Only Farm Managers can record a broiler harvest."))
-        if lot.flock_type != 'broiler' or lot.flock_stage != 'growing':
-            raise UserError(_("%s is not a growing broiler batch.", lot.display_name))
+            raise AccessError(_("Only Farm Managers can record a harvest or a culling."))
+        lot._farm_check_harvestable()
         if self.birds_count <= 0 or self.birds_count > self.available_birds:
-            raise ValidationError(_("Invalid bird count. Available: %s", self.available_birds))
+            raise ValidationError(_("Invalid bird count. Available in %(house)s: %(birds)s",
+                                    house=self.location_id.display_name, birds=self.available_birds))
         if self.total_weight_kg <= 0:
             raise ValidationError(_("Enter the net weight of the birds harvested."))
         meat = self._get_meat_product()
         meat_qty = self._get_meat_qty(meat)
 
-        # 1. Conversion MO: the birds (carrying their batch cost) become meat by weight
+        # 1. Conversion MO: the birds (carrying their cost) become meat by weight
         production = self._create_and_process_harvest_mo(meat, meat_qty, self._get_harvest_cost()[1])
 
-        lot.message_post(body=_(
-            "Harvest %(order)s: %(birds)s birds, %(weight)s kg (%(avg)s kg/bird) converted into Broiler Meat. "
-            "Batch cost released to meat inventory: %(cost)s (%(per_kg)s/kg).",
+        remaining = lot._get_live_bird_counts().get(lot.id, 0)
+        values = dict(
             order=production.name, birds=self.birds_count, weight=formatLang(self.env, self.total_weight_kg),
-            avg=formatLang(self.env, self.net_average_weight, digits=3),
+            avg=formatLang(self.env, self.net_average_weight, digits=3), product=meat.display_name,
+            house=self.location_id.display_name, left=remaining,
             cost=format_amount(self.env, production.farm_broiler_batch_cost, self.currency_id),
             per_kg=format_amount(self.env, production.farm_broiler_batch_cost / self.total_weight_kg, self.currency_id),
-        ), subtype_xmlid='mail.mt_note')
+        )
+        if layer:
+            body = _(
+                "Culling %(order)s: %(birds)s hens from %(house)s, %(weight)s kg (%(avg)s kg/bird) converted into "
+                "%(product)s. Stock value of the hens moved to it: %(cost)s (%(per_kg)s/kg). %(left)s hens left "
+                "in the flock.", **values)
+        else:
+            body = _(
+                "Harvest %(order)s: %(birds)s birds, %(weight)s kg (%(avg)s kg/bird) converted into %(product)s. "
+                "Batch cost released to meat inventory: %(cost)s (%(per_kg)s/kg).", **values)
+        lot.message_post(body=body, subtype_xmlid='mail.mt_note')
 
-        # 2. No bird left in the batch: close it
-        if not lot._get_live_bird_counts().get(lot.id):
+        # 2. Lifecycle: a layer flock keeps laying while hens remain; a broiler batch moves to Harvesting on its
+        #    first partial harvest and is closed with its last bird.
+        if layer:
+            if not remaining and lot.flock_stage == 'laying':
+                lot._mark_spent(reason=_("Its last hens were culled (%s).", production.name))
+        elif not remaining:
             lot._close_broiler_batch()
+        else:
+            lot._broiler_start_harvesting()
 
         # Return action to view the completed Conversion Manufacturing Order
         if self.env['mrp.production'].has_access('read'):
@@ -156,34 +197,50 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         return {'type': 'ir.actions.act_window_close'}
 
     def _get_meat_product(self):
-        meat = self.company_id.farm_broiler_meat_product_id
-        if not meat:
-            raise UserError(_("Choose the Broiler Meat Product in Top Farm > Farm Configuration > Settings first."))
+        """Broiler Meat for a broiler batch, the separate Layer Live Weight product for culled layer hens."""
+        self.ensure_one()
+        if self.flock_lot_id.flock_type == 'layer':
+            meat = self.company_id.farm_layer_meat_product_id
+            if not meat:
+                raise UserError(_("Choose the Layer Live Weight Product in Top Farm > Farm Configuration > "
+                                  "Settings first."))
+            if meat.tracking != 'lot':
+                raise UserError(_(
+                    "The Layer Live Weight product %s must be tracked by lots: the lot of each culling carries the "
+                    "flock its sales are reported to.", meat.display_name))
+        else:
+            meat = self.company_id.farm_broiler_meat_product_id
+            if not meat:
+                raise UserError(_("Choose the Broiler Meat Product in Top Farm > Farm Configuration > Settings first."))
+        if meat.is_farm_bird:
+            raise UserError(_("%s is a live bird product: choose a meat product sold by weight.", meat.display_name))
         if not meat.is_storable:
-            raise UserError(_("The broiler meat product %s must be tracked in inventory.", meat.display_name))
+            raise UserError(_("The meat product %s must be tracked in inventory.", meat.display_name))
         if meat.with_company(self.company_id).cost_method not in ('fifo', 'average'):
             raise UserError(_(
-                "The broiler meat product %s must use the FIFO or Average costing method: a standard price would "
-                "ignore the batch cost of the birds.", meat.display_name))
+                "The meat product %s must use the FIFO or Average costing method: a standard price would "
+                "ignore the cost of the birds.", meat.display_name))
         return meat
 
     def _get_meat_qty(self, meat):
         """Net weight in the meat product's unit, which must be a weight unit."""
         kg = self.env.ref('uom.product_uom_kgm')
         if not kg._has_common_reference(meat.uom_id):
-            raise UserError(_("The broiler meat product %s must be measured by weight (e.g. kg).", meat.display_name))
+            raise UserError(_("The meat product %s must be measured by weight (e.g. kg).", meat.display_name))
         return kg._compute_quantity(self.total_weight_kg, meat.uom_id, round=False)
 
     def _get_meat_lot(self, meat):
-        """Daily meat lot of the batch, MEAT-<batch>-<YYYYMMDD>, stamped with the batch as its parent flock so
-        the meat sales can be reported to the batch."""
+        """Daily meat lot of the flock, MEAT-<batch>-<YYYYMMDD> for a broiler batch and CULL-<flock>-<YYYYMMDD>
+        for culled layer hens, stamped with the flock as its parent so the meat sales (order lines, invoices,
+        profitability) are reported to it."""
         self.ensure_one()
-        if meat.tracking == 'none':
+        if not meat.tracking or meat.tracking == 'none':
             return self.env['stock.lot']
         batch = self.flock_lot_id
         today = fields.Date.context_today(self)
         code = re.sub(r'[^A-Za-z0-9]+', '-', batch.name).strip('-')
-        name = f"MEAT-{code}-{today.strftime('%Y%m%d')}"
+        prefix = 'CULL' if batch.flock_type == 'layer' else 'MEAT'
+        name = f"{prefix}-{code}-{today.strftime('%Y%m%d')}"
         Lot = self.env['stock.lot'].sudo()
         lot = Lot.search([('product_id', '=', meat.id), ('name', '=', name),
                           ('company_id', 'in', [self.company_id.id, False])], limit=1) \
@@ -192,17 +249,24 @@ class FarmBroilerHarvestWizard(models.TransientModel):
             lot.write({'farm_flock_lot_id': batch.id, 'farm_production_date': today})
         return lot
 
+    def _get_meat_destination(self, warehouse):
+        self.ensure_one()
+        company = self.company_id
+        if self.flock_lot_id.flock_type == 'layer':
+            return company.farm_layer_meat_location_id or warehouse.lot_stock_id
+        return company.farm_broiler_meat_location_id or warehouse.lot_stock_id
+
     def _create_and_process_harvest_mo(self, meat, meat_qty, pool_cost):
-        """Single-component conversion: the batch's birds (units) out of the shed, the meat (weight) into the
-        dispatch store. The birds carry their stock value; their share of the Broiler Cost Pool is added as the
-        order's extra cost, so the meat is valued at the batch cost of the birds harvested."""
+        """Single-component conversion: the flock's birds (units) out of the shed or cage, the meat (weight) into
+        the dispatch store. The birds carry their stock value; for a broiler batch their share of the Broiler
+        Cost Pool is added as the order's extra cost, so the meat is valued at the cost of the birds harvested."""
         self.ensure_one()
         lot, shed, company = self.flock_lot_id, self.location_id, self.company_id
         bird = lot.product_id
         warehouse = shed.warehouse_id or self.env['stock.warehouse'].search([('company_id', '=', company.id)], limit=1)
         if not warehouse.manu_type_id:
             raise UserError(_("No manufacturing operation type found for %s.", warehouse.display_name or company.name))
-        destination = company.farm_broiler_meat_location_id or warehouse.lot_stock_id
+        destination = self._get_meat_destination(warehouse)
         Production = self.env['mrp.production'].sudo().with_company(company)
         production = Production.create({
             'product_id': meat.id,

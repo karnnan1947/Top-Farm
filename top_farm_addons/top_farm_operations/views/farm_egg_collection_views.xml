@@ -29,7 +29,7 @@
                             <field name="cage_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
                             <field name="flock_lot_id" readonly="state != 'draft'" options="{'no_create': True}"/>
                             <field name="farm_location_id"/>
-                            <field name="destination_location_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="destination_location_id"/>
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                         </group>
                         <group string="Flock Performance" name="kpis">
@@ -88,6 +88,7 @@
                 <field name="flock_lot_id"/>
                 <field name="farm_location_id" optional="show"/>
                 <field name="cage_location_id"/>
+                <field name="destination_location_id" optional="show"/>
                 <field name="qty_large" sum="Large" optional="show"/>
                 <field name="qty_medium" sum="Medium" optional="show"/>
                 <field name="qty_jumbo" sum="Jumbo" optional="show"/>
@@ -118,6 +119,7 @@
                     <filter string="Flock" name="group_flock" context="{'group_by': 'flock_lot_id'}"/>
                     <filter string="Farm" name="group_farm" context="{'group_by': 'farm_location_id'}"/>
                     <filter string="Cage" name="group_cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter string="Egg Collection Location" name="group_destination" context="{'group_by': 'destination_location_id'}"/>
                     <filter string="Collection Date" name="group_date" context="{'group_by': 'date:day'}"/>
                     <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
                 </group>

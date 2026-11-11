@@ -15,6 +15,9 @@ class FarmEggReport(models.Model):
     flock_lot_id = fields.Many2one('stock.lot', string='Flock', readonly=True)
     farm_location_id = fields.Many2one('stock.location', string='Farm', readonly=True)
     cage_location_id = fields.Many2one('stock.location', string='Cage', readonly=True)
+    destination_location_id = fields.Many2one(
+        'stock.location', string='Egg Collection Location', readonly=True,
+        help="Warehouse location the eggs were produced into: the Egg Collection Location of the cage.")
     grade = fields.Selection(GRADES, string='Egg Grade', readonly=True)
     product_id = fields.Many2one('product.product', string='Egg Product', readonly=True)
     eggs = fields.Integer(string='Eggs', readonly=True)
@@ -47,7 +50,7 @@ class FarmEggReport(models.Model):
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 SELECT ec.id * 10 + g.n AS id, ec.date, ec.company_id, ec.flock_lot_id, ec.farm_location_id,
-                       ec.cage_location_id, g.grade,
+                       ec.cage_location_id, ec.destination_location_id, g.grade,
                        CASE g.grade WHEN 'large' THEN ec.product_large_id WHEN 'medium' THEN ec.product_medium_id
                                     WHEN 'jumbo' THEN ec.product_jumbo_id ELSE ec.product_damage_id END AS product_id,
                        g.qty AS eggs,

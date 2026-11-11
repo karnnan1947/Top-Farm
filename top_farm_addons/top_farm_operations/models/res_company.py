@@ -15,10 +15,6 @@ class ResCompany(models.Model):
         'stock.location', string='Medication Consumption Location',
         domain="[('usage', '=', 'inventory')]",
         help="Virtual location that receives administered medication and vaccines.")
-    farm_egg_location_id = fields.Many2one(
-        'stock.location', string='Egg Store Location',
-        domain="[('usage', '=', 'internal')]",
-        help="Default cold-room location for graded eggs. A farm can override it.")
     farm_egg_medium_product_id = fields.Many2one('product.product', string='Medium Egg Product')
     farm_egg_large_product_id = fields.Many2one('product.product', string='Large Egg Product')
     farm_egg_jumbo_product_id = fields.Many2one('product.product', string='Jumbo Egg Product')
@@ -31,6 +27,16 @@ class ResCompany(models.Model):
         domain="[('usage', '=', 'internal')]",
         help="Where harvested broiler meat is received and delivered from. Empty: the stock location of the "
              "warehouse of the broiler shed.")
+    farm_layer_meat_product_id = fields.Many2one(
+        'product.product', string='Layer Live Weight Product',
+        help="Product the culling of layer hens produces and sells by weight (e.g. Layer Live Weight, in kg), "
+             "kept apart from the broiler meat. It must be tracked by lots: the lot of each culling carries the "
+             "flock, so the sales are reported to it.")
+    farm_layer_meat_location_id = fields.Many2one(
+        'stock.location', string='Layer Meat Dispatch Location',
+        domain="[('usage', '=', 'internal')]",
+        help="Where the live weight of culled hens is received and delivered from. Empty: the stock location of "
+             "the warehouse of the cage.")
 
     laying_transition_mode = fields.Selection([
         ('manual', 'Alert the Farm Managers, a manager confirms'),

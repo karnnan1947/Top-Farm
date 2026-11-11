@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Dashboard - Flock KPIs, Investment & Lifetime P&L',
-    'version': '20.0.2.2.0',
+    'version': '20.0.2.3.0',
     'category': 'Inventory/Poultry',
     'summary': 'Executive flock KPIs, pre-laying flock investment, delivery-lot invoice tagging and flock lifetime P&L',
     'description': """
@@ -17,6 +17,8 @@ Top Farm Business Intelligence
 - Ratio-correct mortality analysis by flock, brooding nursery / cage, month and cause.
 - Broiler batches: meat sales (through the meat lot's parent batch) in the lifetime P&L and revenue allocation,
   capitalized feed in the feed analysis, broiler sheds in the house analyses.
+- Layer culling: sales of the Layer Live Weight product (through the CULL lot's parent flock) are Spent Hen
+  Revenue of the flock, by weight. Egg Production Analysis by Egg Collection Location (per cage / per farm store).
     """,
     'author': 'Top Farm ERP Team',
     'depends': ['top_farm_core', 'top_farm_operations', 'top_farm_mortality', 'sale_stock', 'account'],

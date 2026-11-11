@@ -48,13 +48,9 @@
                     </setting>
                     <setting id="setting_farm_egg_products" company_dependent="1"
                              string="Graded Egg Products"
-                             help="Default products and store for new egg collections. A farm can have its own Egg Store Location.">
+                             help="Default products of new egg collections. There is no company-wide egg store: each cage maps its own Egg Collection Location (Top Farm > Farm Configuration > Farm Infrastructure), and its eggs are produced straight into it.">
                         <div class="content-group">
                             <div class="row mt-2">
-                                <label for="farm_egg_location_id" string="Egg Store" class="col-lg-4 o_light_label"/>
-                                <field name="farm_egg_location_id" class="col-lg-6" options="{'no_create': True}"/>
-                            </div>
-                            <div class="row mt-1">
                                 <label for="farm_egg_large_product_id" string="Large" class="col-lg-4 o_light_label"/>
                                 <field name="farm_egg_large_product_id" class="col-lg-6"/>
                             </div>
@@ -83,6 +79,20 @@
                             <div class="row mt-1">
                                 <label for="farm_broiler_meat_location_id" string="Dispatch Store" class="col-lg-4 o_light_label"/>
                                 <field name="farm_broiler_meat_location_id" class="col-lg-6" options="{'no_create': True}"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="setting_farm_layer_meat" company_dependent="1"
+                             string="Layer Culling &amp; Live Weight Sales"
+                             help="Product the culling of layer hens produces and sells by weight, kept apart from the broiler meat (tracked by lots, FIFO or Average cost, unit in kg), and the store it is received and delivered from (empty: the cage's warehouse stock).">
+                        <div class="content-group">
+                            <div class="row mt-2">
+                                <label for="farm_layer_meat_product_id" string="Live Weight Product" class="col-lg-4 o_light_label"/>
+                                <field name="farm_layer_meat_product_id" class="col-lg-6"/>
+                            </div>
+                            <div class="row mt-1">
+                                <label for="farm_layer_meat_location_id" string="Dispatch Store" class="col-lg-4 o_light_label"/>
+                                <field name="farm_layer_meat_location_id" class="col-lg-6" options="{'no_create': True}"/>
                             </div>
                         </div>
                     </setting>

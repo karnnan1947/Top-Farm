@@ -53,6 +53,8 @@
                         domain="[('flock_stage', 'in', ('brooding', 'rearing'))]"/>
                 <filter name="filter_locked" string="Locked (Laying or Spent)"
                         domain="[('flock_stage', 'in', ('laying', 'spent'))]"/>
+                <filter name="filter_broiler" string="Broiler Batches"
+                        domain="[('flock_stage', 'in', ('growing', 'harvesting', 'closed'))]"/>
                 <separator/>
                 <filter name="filter_date" string="Date" date="date"/>
                 <group>

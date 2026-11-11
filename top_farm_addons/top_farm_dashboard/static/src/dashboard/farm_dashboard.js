@@ -143,7 +143,7 @@ export class FarmDashboard extends Component {
             ["product_id.is_farm_bird", "=", true],
             ["location_id.usage", "=", "internal"],
             ["lot_id.is_flock_batch", "=", true],
-            ["lot_id.flock_stage", "!=", "spent"],
+            ["lot_id.flock_stage", "not in", ["spent", "closed"]],
             ["quantity", ">", 0],
         ];
         if (this.flock()) {

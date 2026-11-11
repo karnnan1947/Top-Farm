@@ -1,8 +1,10 @@
 """SQL building blocks shared by the farm reporting views. Reporting is flock-first: every revenue and cost row
 carries the flock lot, and the cage (or brooding nursery) is a second level under it."""
 
-# Invoiced sales of the flock: graded eggs and broiler meat (through the lot's parent flock) and live birds such as
-# spent hens (the delivered lot is the flock itself). Egg revenue is shared between the cages by their egg counts.
+# Invoiced sales of the flock: graded eggs, broiler meat and the live weight of culled layer hens (through the lot's
+# parent flock) and live birds such as spent hens (the delivered lot is the flock itself). Egg revenue is shared
+# between the cages by their egg counts. Culled hens sold by weight ('layer_meat') are spent hen revenue, counted in
+# kg, never in birds.
 REVENUE_CTES = """
 inv AS (
     SELECT * FROM (
@@ -10,6 +12,7 @@ inv AS (
                aml.quantity * (CASE WHEN am.move_type = 'out_refund' THEN -1 ELSE 1 END) AS inv_qty,
                sol.id AS sol_id,
                CASE WHEN pt.is_farm_bird THEN 'spent_hen'
+                    WHEN sol.product_id = rc.farm_layer_meat_product_id THEN 'layer_meat'
                     WHEN sol.product_id = rc.farm_broiler_meat_product_id THEN 'broiler_meat'
                     WHEN sol.product_id = rc.farm_egg_large_product_id THEN 'large'
                     WHEN sol.product_id = rc.farm_egg_medium_product_id THEN 'medium'
@@ -61,10 +64,10 @@ rev AS (
     SELECT il.aml_id, il.date, il.company_id, il.flock_id AS flock_lot_id, flock.farm_location_id,
            COALESCE(ec.cage_location_id, il.house_id) AS cage_location_id, il.production_date, il.grade, il.product_id,
            il.revenue * il.lot_share * COALESCE(ec.qty::float / ec.flock_qty, 1.0) AS revenue,
-           CASE WHEN il.grade IN ('spent_hen', 'broiler_meat') THEN 0
+           CASE WHEN il.grade IN ('spent_hen', 'layer_meat', 'broiler_meat') THEN 0
                 ELSE il.inv_qty * il.lot_share * COALESCE(ec.qty::float / ec.flock_qty, 1.0) END AS eggs_sold,
            CASE WHEN il.grade = 'spent_hen' THEN il.inv_qty * il.lot_share ELSE 0 END AS birds_sold,
-           CASE WHEN il.grade = 'broiler_meat' THEN il.inv_qty * il.lot_share ELSE 0 END AS meat_sold
+           CASE WHEN il.grade IN ('broiler_meat', 'layer_meat') THEN il.inv_qty * il.lot_share ELSE 0 END AS meat_sold
       FROM inv_lot il
       JOIN stock_lot flock ON flock.id = il.flock_id
       LEFT JOIN egg_cage ec ON ec.flock_lot_id = il.flock_id

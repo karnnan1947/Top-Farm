@@ -6,7 +6,9 @@ from markupsafe import Markup
 from odoo import api, fields, models, _
 from odoo.exceptions import AccessError, UserError
 
-from odoo.addons.top_farm_core.models.stock_lot import POINT_OF_LAY_ACTIVITY
+from odoo.addons.top_farm_core.models.stock_lot import BROILER_LIVE_STAGES, POINT_OF_LAY_ACTIVITY
+
+from ..wizard.farm_broiler_harvest_wizard import BROILER_HARVEST_STAGES, LAYER_CULL_STAGES
 
 
 class StockLot(models.Model):
@@ -23,7 +25,7 @@ class StockLot(models.Model):
         help="Eggs over live bird days of the flock's cages on the rolling window of the Top Farm settings, "
              "up to today. The Laying Phase benchmark is checked against it.")
 
-    # Broiler batch: harvests (meat MOs) and batch economics
+    # Harvests (meat MOs) of a broiler batch, cullings of a layer flock, and the broiler batch economics
     broiler_harvest_ids = fields.One2many('mrp.production', 'farm_broiler_lot_id', string='Harvests')
     broiler_harvest_count = fields.Integer(string='Harvest Count', compute='_compute_broiler_harvest')
     broiler_harvested_birds = fields.Integer(string='Birds Harvested', compute='_compute_broiler_harvest')
@@ -33,7 +35,8 @@ class StockLot(models.Model):
         string='Avg Harvest Weight (kg)', compute='_compute_broiler_harvest', digits=(16, 3))
     broiler_released_cost = fields.Monetary(
         string='Batch Cost Released to Meat', compute='_compute_broiler_harvest', currency_field='currency_id',
-        help="Stock value the harvests gave to the meat: the batch cost of the birds harvested.")
+        help="Stock value the harvests gave to the meat: the cost of the birds harvested (for a layer flock, the "
+             "stock value of the hens culled).")
     broiler_feed_qty = fields.Float(
         string='Feed Consumed (kg)', compute='_compute_broiler_harvest', digits=(16, 2),
         help="Feed of the batch's confirmed feed logs.")
@@ -55,9 +58,11 @@ class StockLot(models.Model):
 
     @api.depends('broiler_avg_weight')
     def _compute_broiler_harvest(self):
-        broilers = self._origin.filtered(lambda l: l.is_flock_batch and l.flock_type == 'broiler')
+        flocks = self._origin.filtered('is_flock_batch')
+        broilers = flocks.filtered(lambda l: l.flock_type == 'broiler')
+        # harvests of broiler batches and cullings of layer flocks
         harvests = self.env['mrp.production'].sudo().search(
-            [('farm_broiler_lot_id', 'in', broilers.ids), ('state', '=', 'done')]).grouped('farm_broiler_lot_id')
+            [('farm_broiler_lot_id', 'in', flocks.ids), ('state', '=', 'done')]).grouped('farm_broiler_lot_id')
         feed = dict(self.env['farm.feed.log'].sudo()._read_group(
             [('flock_lot_id', 'in', broilers.ids), ('state', '=', 'reconciled')],
             ['flock_lot_id'], ['total_feed_qty:sum'])) if broilers else {}
@@ -82,7 +87,7 @@ class StockLot(models.Model):
                 sales += order.currency_id._convert(
                     order.amount_untaxed, lot.currency_id, order.company_id, fields.Date.to_date(order.date_order))
             feed_qty = feed.get(batch, 0.0) if batch in broilers else 0.0
-            produced = weight + (lot.broiler_estimated_biomass if lot.flock_stage == 'growing' else 0.0)
+            produced = weight + (lot.broiler_estimated_biomass if lot.flock_stage in BROILER_LIVE_STAGES else 0.0)
             lot.broiler_harvest_count = len(productions)
             lot.broiler_harvested_birds = birds
             lot.broiler_harvested_weight = weight
@@ -104,32 +109,54 @@ class StockLot(models.Model):
                 releases[lot.id] = releases.get(lot.id, 0.0) + amount
         return releases
 
+    def _farm_harvest_stages(self):
+        """Stages the birds of the flock can be converted into meat in: a broiler batch once it is Growing (never
+        in Brooding), a layer flock while it is Laying or Spent."""
+        self.ensure_one()
+        return LAYER_CULL_STAGES if self.flock_type == 'layer' else BROILER_HARVEST_STAGES
+
+    def _farm_check_harvestable(self):
+        self.ensure_one()
+        if self.is_flock_batch and self.flock_stage in self._farm_harvest_stages():
+            return
+        if self.flock_type == 'layer':
+            raise UserError(_("%s is not a layer flock in the Laying or Spent stage: its hens cannot be culled "
+                              "into meat.", self.display_name))
+        if self.flock_type == 'broiler' and self.flock_stage == 'brooding':
+            raise UserError(_("Batch %s is still Brooding: click Start Growing before its first harvest.", self.name))
+        raise UserError(_("%s is not a broiler batch in the Growing or Harvesting stage.", self.display_name))
+
     def action_open_broiler_harvest_wizard(self):
-        """Manager button on a growing broiler batch: record a harvest (birds and weight) and produce broiler meat."""
+        """Manager button: record a harvest (birds and weight) and convert the birds into meat by weight. A
+        broiler batch in Growing or Harvesting gives broiler meat; a layer flock in Laying or Spent gives Layer
+        Live Weight (culling of all or part of its hens)."""
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
-            raise AccessError(_("Only Farm Managers can record a broiler harvest."))
-        if self.flock_type != 'broiler' or self.flock_stage != 'growing':
-            raise UserError(_("%s is not a growing broiler batch.", self.display_name))
+            raise AccessError(_("Only Farm Managers can record a harvest or a culling."))
+        self._farm_check_harvestable()
+        layer = self.flock_type == 'layer'
         if not self.live_bird_count:
+            if layer:
+                raise UserError(_("Flock %s has no live birds left to cull.", self.name))
             raise UserError(_("Batch %s has no live birds left to harvest: close it instead.", self.name))
         return {
-            'name': _("Record Broiler Harvest & Meat Conversion"),
+            'name': _("Cull Hens & Convert to Live Weight") if layer else _("Record Broiler Harvest & Meat Conversion"),
             'type': 'ir.actions.act_window',
             'res_model': 'farm.broiler.harvest.wizard',
             'view_mode': 'form',
             'target': 'new',
             'context': {
                 'default_flock_lot_id': self.id,
-                'default_average_weight': self.broiler_avg_weight,
-                'default_price_per_kg': self.broiler_market_rate,
+                'default_average_weight': 0.0 if layer else self.broiler_avg_weight,
+                'default_price_per_kg': 0.0 if layer else self.broiler_market_rate,
             },
         }
 
     def action_view_broiler_harvests(self):
         self.ensure_one()
         action = self.env['ir.actions.act_window']._for_xml_id('mrp.mrp_production_action')
-        action['display_name'] = _("Harvests of %s", self.name)
+        action['display_name'] = _("Cullings of %s", self.name) if self.flock_type == 'layer' \
+            else _("Harvests of %s", self.name)
         action['domain'] = [('farm_broiler_lot_id', '=', self.id)]
         action['context'] = {'create': False}
         return action

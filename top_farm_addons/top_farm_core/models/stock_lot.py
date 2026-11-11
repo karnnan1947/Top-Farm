@@ -4,13 +4,21 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import format_amount
 
 POINT_OF_LAY_ACTIVITY = 'top_farm_core.mail_activity_type_point_of_lay'
+# Layer flock: Brooding > Rearing / Pre-Laying > Laying > Spent / Depleted.
+# Broiler batch: Brooding > Growing > Harvesting > Closed.
 FLOCK_STAGES = [
     ('brooding', 'Brooding'),
     ('rearing', 'Rearing / Pre-Laying'),
     ('laying', 'Laying'),
-    ('growing', 'Growing (Broiler)'),
+    ('growing', 'Growing'),
+    ('harvesting', 'Harvesting'),
     ('spent', 'Spent / Depleted'),
+    ('closed', 'Closed'),
 ]
+# Stages of a flock whose cycle is over (a spent layer flock, a closed broiler batch)
+FLOCK_END_STAGES = ('spent', 'closed')
+# Stages a broiler batch is alive in: its feed, medication and mortality are capitalized in all of them
+BROILER_LIVE_STAGES = ('brooding', 'growing', 'harvesting')
 
 
 class StockLot(models.Model):
@@ -35,11 +43,16 @@ class StockLot(models.Model):
         help="Layer Flock or Broiler Batch, from the Bird Type of the product.")
     flock_stage = fields.Selection(
         FLOCK_STAGES, string='Flock Stage', index=True, copy=False, tracking=True,
-        help="Brooding: chicks under heat in the brooding nursery (weeks 0-4).\n"
+        help="Layer flock\n"
+             "Brooding: chicks under heat in the brooding nursery (weeks 0-4).\n"
              "Rearing / Pre-Laying: pullets in cages; their cost accumulates as flock investment.\n"
              "Laying: commercial egg production; feed becomes a component of the eggs.\n"
-             "Growing (Broiler): a broiler batch in its shed; its costs are capitalized until harvest.\n"
-             "Spent / Depleted: end of the laying cycle, or every bird of the broiler batch harvested.")
+             "Spent / Depleted: end of the laying cycle.\n\n"
+             "Broiler batch (its costs are capitalized in every stage)\n"
+             "Brooding: chicks just placed in the broiler shed; no harvest yet.\n"
+             "Growing: brooding is over, the batch can be harvested.\n"
+             "Harvesting: a first partial harvest was recorded; the remaining birds are still fed and harvested.\n"
+             "Closed: no live bird left in the batch.")
     flock_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Flock Analytic Account', copy=False, tracking=True,
         help="Every cost of the flock (brooding and cage feed, medication, mortality) is tagged to this account.")
@@ -125,7 +138,8 @@ class StockLot(models.Model):
 
     @api.model
     def _farm_initial_stage(self, product):
-        return 'growing' if product.farm_flock_type == 'broiler' else 'brooding'
+        """Layer flocks and broiler batches both start in Brooding, in the house their chicks are placed in."""
+        return 'brooding'
 
     def _farm_ensure_analytic_account(self):
         """Give each flock its own account in the Flock Analytic Plan, when the company asks for it."""
@@ -323,13 +337,19 @@ class StockLot(models.Model):
     # -------------------------------------------------------------------------
     # STAGE ACTIONS
     # -------------------------------------------------------------------------
-    def _check_flock_stage_change(self, from_stages):
-        """Manager-only change of the flock stage (never callable by an operator, whatever the context)."""
+    def _check_flock_stage_change(self, from_stages, flock_type=None):
+        """Manager-only change of the flock stage (never callable by an operator, whatever the context).
+        Brooding is shared by layer flocks and broiler batches: `flock_type` restricts the action to one."""
         self.ensure_one()
         if not self.env.su and not self.env.user.has_group('top_farm_core.group_farm_manager'):
             raise AccessError(_("Only Farm Managers can change the stage of a flock."))
         if not self.is_flock_batch:
             raise UserError(_("%s is not a flock lot.", self.display_name))
+        if flock_type and self.flock_type != flock_type:
+            if flock_type == 'broiler':
+                raise UserError(_("%s is not a broiler batch.", self.display_name))
+            raise UserError(_("%s is a broiler batch: its stages are Brooding, Growing, Harvesting and Closed.",
+                              self.display_name))
         if self.flock_stage not in from_stages:
             stages = dict(self._fields['flock_stage'].selection)
             raise UserError(_("This flock is not in the '%(stage)s' stage.",
@@ -341,13 +361,13 @@ class StockLot(models.Model):
     def action_move_to_rearing(self):
         """Manager button: brooding is over (normally done by the Brooding-to-Cage allocation wizard)."""
         self.ensure_one()
-        self._check_flock_stage_change(['brooding'])
+        self._check_flock_stage_change(['brooding'], flock_type='layer')
         self._advance_to_rearing()
         return True
 
     def _advance_to_rearing(self):
         self.ensure_one()
-        if self.flock_stage != 'brooding':
+        if self.flock_stage != 'brooding' or self.flock_type == 'broiler':
             return
         self.write({'flock_stage': 'rearing', 'cage_allocation_date': fields.Date.context_today(self)})
         self._post_stage_note(_("Brooding is over: flock moved to Rearing / Pre-Laying at %(age)s weeks.",
@@ -394,16 +414,42 @@ class StockLot(models.Model):
     def action_mark_spent(self):
         """Manager button: the laying cycle is over; the flock becomes Spent Hen / Depleted."""
         self.ensure_one()
-        self._check_flock_stage_change(['laying'])
-        self.write({'flock_stage': 'spent', 'depletion_date': fields.Date.context_today(self)})
-        self._post_stage_note(_("Flock marked as Spent / Depleted by %(user)s at %(age)s weeks.",
-                                user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}"))
+        self._check_flock_stage_change(['laying'], flock_type='layer')
+        self._mark_spent()
         return True
+
+    def _mark_spent(self, reason=None):
+        """End of the laying cycle. Private so that the culling of the last hens can call it, while RPC callers
+        always go through the manager check above."""
+        self.ensure_one()
+        self.write({'flock_stage': 'spent', 'depletion_date': fields.Date.context_today(self)})
+        body = _("Flock marked as Spent / Depleted by %(user)s at %(age)s weeks.",
+                 user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}")
+        self._post_stage_note(f"{body} {reason}" if reason else body)
+
+    def action_start_broiler_growing(self):
+        """Manager button: the brooding of a broiler batch is over. From Growing on it can be harvested; its
+        feed, medication and mortality are capitalized the same way in both stages."""
+        self.ensure_one()
+        self._check_flock_stage_change(['brooding'], flock_type='broiler')
+        self.flock_stage = 'growing'
+        self._post_stage_note(_("Brooding is over: broiler batch moved to Growing by %(user)s at %(days)s days.",
+                                user=self.env.user.name, days=self.flock_age_days))
+        return True
+
+    def _broiler_start_harvesting(self):
+        """A first partial harvest left birds in the shed: the batch is in its multi-day sales window."""
+        self.ensure_one()
+        if self.flock_type == 'broiler' and self.flock_stage == 'growing':
+            self.flock_stage = 'harvesting'
+            self._post_stage_note(_("First partial harvest at %(days)s days: the batch is now Harvesting, "
+                                    "%(birds)s birds left in the shed.",
+                                    days=self.flock_age_days, birds=self.live_bird_count))
 
     def action_close_broiler_batch(self):
         """Manager button: every bird of the broiler batch has left its shed (harvests, mortality)."""
         self.ensure_one()
-        self._check_flock_stage_change(['growing'])
+        self._check_flock_stage_change(list(BROILER_LIVE_STAGES), flock_type='broiler')
         if self.live_bird_count:
             raise UserError(_("Batch %(batch)s still has %(birds)s live birds: harvest them, or record their "
                               "mortality, before closing it.", batch=self.name, birds=self.live_bird_count))
@@ -411,10 +457,10 @@ class StockLot(models.Model):
         return True
 
     def _close_broiler_batch(self, date=None):
-        """Close the batch (Spent / Depleted) and expense what is left in its Broiler Cost Pool."""
+        """Close the batch and expense what is left in its Broiler Cost Pool."""
         self.ensure_one()
         date = date or fields.Date.context_today(self)
-        self.write({'flock_stage': 'spent', 'depletion_date': date})
+        self.write({'flock_stage': 'closed', 'depletion_date': date})
         written_off = self._broiler_write_off_pool(date)
         body = _("Broiler batch closed at %(days)s days.", days=self.flock_age_days)
         if written_off:

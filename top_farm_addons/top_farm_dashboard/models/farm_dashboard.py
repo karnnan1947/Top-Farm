@@ -27,7 +27,7 @@ class FarmDashboard(models.AbstractModel):
 
         env = self.sudo().env
         # Live population: the birds of the active flocks, in brooding nurseries and cages
-        flock_domain = [('is_flock_batch', '=', True), ('flock_stage', '!=', 'spent'),
+        flock_domain = [('is_flock_batch', '=', True), ('flock_stage', 'not in', ('spent', 'closed')),
                         ('company_id', 'in', company_ids + [False])]
         flocks = env['stock.lot'].search(flock_domain, order='farm_arrival_date desc, name')
         counted = flocks.filtered(lambda f: f.id == flock_id) if flock_id else flocks

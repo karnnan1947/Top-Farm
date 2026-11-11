@@ -19,11 +19,14 @@ class FarmProfitabilityReport(models.Model):
     production_date = fields.Date(string='Egg Production Date', readonly=True)
     eggs_sold = fields.Float(string='Eggs Sold', readonly=True, digits=(16, 2))
     birds_sold = fields.Float(string='Birds Sold', readonly=True, digits=(16, 2))
-    meat_sold = fields.Float(string='Broiler Meat Sold (kg)', readonly=True, digits=(16, 2))
+    meat_sold = fields.Float(
+        string='Meat Sold (kg)', readonly=True, digits=(16, 2),
+        help="Weight sold of broiler meat and of the live weight of culled layer hens.")
     egg_revenue = fields.Monetary(string='Egg Revenue', currency_field='currency_id', readonly=True)
     bird_revenue = fields.Monetary(
         string='Spent Hen Revenue', currency_field='currency_id', readonly=True,
-        help="Invoiced sales of the flock's live birds (spent hens, culls).")
+        help="Invoiced sales of the flock's hens: live birds sold by count (spent hens) and culled hens sold by "
+             "weight (Layer Live Weight).")
     meat_revenue = fields.Monetary(
         string='Broiler Meat Revenue', currency_field='currency_id', readonly=True,
         help="Invoiced sales of the meat harvested from a broiler batch.")
@@ -61,9 +64,10 @@ class FarmProfitabilityReport(models.Model):
                 u AS (
                     SELECT rev.date, rev.company_id, rev.flock_lot_id, rev.farm_location_id, rev.cage_location_id,
                            rev.production_date, rev.eggs_sold, rev.birds_sold, rev.meat_sold,
-                           CASE WHEN rev.grade IN ('spent_hen', 'broiler_meat') THEN 0.0 ELSE rev.revenue END
-                               AS egg_revenue,
-                           CASE WHEN rev.grade = 'spent_hen' THEN rev.revenue ELSE 0.0 END AS bird_revenue,
+                           CASE WHEN rev.grade IN ('spent_hen', 'layer_meat', 'broiler_meat') THEN 0.0
+                                ELSE rev.revenue END AS egg_revenue,
+                           CASE WHEN rev.grade IN ('spent_hen', 'layer_meat') THEN rev.revenue ELSE 0.0 END
+                               AS bird_revenue,
                            CASE WHEN rev.grade = 'broiler_meat' THEN rev.revenue ELSE 0.0 END AS meat_revenue,
                            0.0 AS feed_cost, 0.0 AS medication_cost, 0.0 AS mortality_cost, 0.0 AS bird_cost,
                            0.0 AS other_cost

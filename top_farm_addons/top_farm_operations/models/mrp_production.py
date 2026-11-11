@@ -16,17 +16,21 @@ class MrpProduction(models.Model):
         help="Links manufacturing order back to the daily poultry egg collection."
     )
 
-    # Broiler harvest: live birds (units) in, meat (kg) out
+    # Bird harvest: live birds (units) in, live weight (kg) out. A broiler batch gives broiler meat, the culled
+    # hens of a layer flock give Layer Live Weight (the field names date from the broiler-only harvest).
     farm_broiler_lot_id = fields.Many2one(
-        'stock.lot', string='Broiler Batch', readonly=True, index='btree_not_null', copy=False,
-        help="Broiler batch harvested by this order: its live birds are converted into meat by weight.")
+        'stock.lot', string='Flock / Batch Harvested', readonly=True, index='btree_not_null', copy=False,
+        help="Broiler batch harvested, or layer flock culled, by this order: its live birds are converted into "
+             "meat by weight.")
+    farm_harvest_flock_type = fields.Selection(related='farm_broiler_lot_id.flock_type', string='Harvest Type')
     farm_broiler_bird_count = fields.Integer(string='Birds Harvested', readonly=True, copy=False)
     farm_broiler_weight_kg = fields.Float(string='Net Weight (kg)', digits=(16, 2), readonly=True, copy=False)
     farm_currency_id = fields.Many2one(related='company_id.currency_id', string='Company Currency')
     farm_broiler_batch_cost = fields.Monetary(
         string='Batch Cost Released', currency_field='farm_currency_id', readonly=True, copy=False,
-        help="Batch cost carried by the harvested birds: their stock value plus their share of the Broiler Cost "
-             "Pool (capitalized feed, medication and mortality). It is the stock value of the meat.")
+        help="Cost carried by the harvested birds: their stock value plus, for a broiler batch, their share of "
+             "the Broiler Cost Pool (capitalized feed, medication and mortality). It is the stock value of the "
+             "meat. Culled layer hens carry their stock value only.")
     farm_broiler_pool_cost = fields.Monetary(
         string='Released from Cost Pool', currency_field='farm_currency_id', readonly=True, copy=False,
         help="The harvested birds' share of the batch's Broiler Cost Pool (all of it for the last birds), set as "
@@ -36,14 +40,15 @@ class MrpProduction(models.Model):
     farm_broiler_sale_id = fields.Many2one('sale.order', string='Meat Sales Order', copy=False)
 
     def _farm_check_not_broiler_harvest(self):
-        """A broiler harvest is posted at once: its meat carries the batch cost (Broiler Cost Pool entry), a sales
-        order bills it and the batch may have closed with it. Reverting its stock would leave those behind."""
+        """A bird harvest (broiler harvest, layer culling) is posted at once: its meat carries the cost of the
+        birds (and the Broiler Cost Pool entry), and the flock may have changed stage or closed with it.
+        Reverting its stock would leave those behind."""
         harvests = self.filtered('farm_broiler_lot_id')
         if harvests:
             raise UserError(_(
-                "%(orders)s is a broiler harvest of batch %(batch)s: it cannot be reset or unbuilt. Its meat is "
-                "valued at the batch cost and sold on %(sale)s.", orders=harvests[0].name,
-                batch=harvests[0].farm_broiler_lot_id.name, sale=harvests[0].farm_broiler_sale_id.name or '-'))
+                "%(orders)s is a bird harvest of flock %(batch)s: it cannot be reset or unbuilt. Its meat is "
+                "valued at the cost of the birds harvested.", orders=harvests[0].name,
+                batch=harvests[0].farm_broiler_lot_id.name))
 
     def action_reset_to_progress(self):
         self._farm_check_not_broiler_harvest()

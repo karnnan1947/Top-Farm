@@ -8,12 +8,19 @@
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="before">
                 <header invisible="not is_flock_batch">
+                    <field name="flock_type" invisible="1"/>
+                    <!-- Layer flock: Brooding > Rearing / Pre-Laying > Laying > Spent -->
                     <button name="action_allocate_to_cages" string="Allocate to Cages" type="object"
-                            class="oe_highlight" invisible="flock_stage != 'brooding'"
+                            class="oe_highlight" invisible="flock_stage != 'brooding' or flock_type == 'broiler'"
                             groups="top_farm_core.group_farm_manager"/>
                     <button name="action_move_to_rearing" string="End Brooding" type="object"
-                            invisible="flock_stage != 'brooding'"
+                            invisible="flock_stage != 'brooding' or flock_type == 'broiler'"
                             confirm="Move this flock to Rearing / Pre-Laying without a cage allocation?"
+                            groups="top_farm_core.group_farm_manager"/>
+                    <!-- Broiler batch: Brooding > Growing > Harvesting > Closed -->
+                    <button name="action_start_broiler_growing" string="Start Growing" type="object"
+                            class="oe_highlight" invisible="flock_stage != 'brooding' or flock_type != 'broiler'"
+                            confirm="Brooding is over: move this broiler batch to Growing? It can be harvested from then on."
                             groups="top_farm_core.group_farm_manager"/>
                     <button name="action_start_laying_phase" string="Start Laying Phase" type="object"
                             class="oe_highlight" invisible="flock_stage != 'rearing'"
@@ -28,13 +35,12 @@
                             confirm="Move this flock back to Rearing / Pre-Laying? New feed logs will be expensed at once instead of staged."
                             groups="top_farm_core.group_farm_manager"/>
                     <button name="action_close_broiler_batch" string="Close Batch" type="object"
-                            invisible="flock_stage != 'growing' or live_bird_count"
+                            invisible="flock_type != 'broiler' or flock_stage not in ('brooding', 'growing', 'harvesting') or live_bird_count"
                             confirm="Close this broiler batch? Any batch cost that no harvest released is expensed."
                             groups="top_farm_core.group_farm_manager"/>
-                    <field name="flock_type" invisible="1"/>
                     <field name="flock_stage" widget="statusbar" statusbar_visible="brooding,rearing,laying,spent"
                            invisible="flock_type == 'broiler'"/>
-                    <field name="flock_stage" widget="statusbar" statusbar_visible="growing,spent"
+                    <field name="flock_stage" widget="statusbar" statusbar_visible="brooding,growing,harvesting,closed"
                            invisible="flock_type != 'broiler'"/>
                 </header>
             </xpath>
@@ -76,9 +82,9 @@
                        invisible="not is_flock_batch or flock_type != 'broiler'"
                        groups="top_farm_core.group_farm_user">
                     <group>
-                        <field name="broiler_avg_weight" readonly="flock_stage != 'growing'"/>
+                        <field name="broiler_avg_weight" readonly="flock_stage not in ('brooding', 'growing', 'harvesting')"/>
                         <field name="broiler_estimated_biomass"/>
-                        <field name="broiler_market_rate" readonly="flock_stage != 'growing'"
+                        <field name="broiler_market_rate" readonly="flock_stage not in ('brooding', 'growing', 'harvesting')"
                                groups="top_farm_core.group_farm_manager"/>
                         <field name="broiler_estimated_value" groups="top_farm_core.group_farm_manager"/>
                     </group>
@@ -111,8 +117,8 @@
                        decoration-warning="flock_stage == 'brooding'"
                        decoration-primary="flock_stage == 'rearing'"
                        decoration-success="flock_stage == 'laying'"
-                       decoration-info="flock_stage == 'growing'"
-                       decoration-muted="flock_stage == 'spent'"/>
+                       decoration-info="flock_stage in ('growing', 'harvesting')"
+                       decoration-muted="flock_stage in ('spent', 'closed')"/>
                 <field name="farm_arrival_date"/>
                 <field name="flock_age_weeks"/>
                 <field name="initial_bird_count" optional="show"/>
@@ -140,12 +146,14 @@
                 <filter string="Layer Flocks" name="filter_layer" domain="[('flock_type', '=', 'layer')]"/>
                 <filter string="Broiler Batches" name="filter_broiler" domain="[('flock_type', '=', 'broiler')]"/>
                 <separator/>
-                <filter string="Active Flocks" name="filter_flock_active" domain="[('flock_stage', 'in', ('brooding', 'rearing', 'laying', 'growing'))]"/>
+                <filter string="Active Flocks" name="filter_flock_active" domain="[('flock_stage', 'not in', ('spent', 'closed'))]"/>
                 <filter string="Brooding" name="filter_brooding" domain="[('flock_stage', '=', 'brooding')]"/>
                 <filter string="Rearing / Pre-Laying" name="filter_rearing" domain="[('flock_stage', '=', 'rearing')]"/>
                 <filter string="Laying" name="filter_laying" domain="[('flock_stage', '=', 'laying')]"/>
-                <filter string="Growing (Broiler)" name="filter_growing" domain="[('flock_stage', '=', 'growing')]"/>
+                <filter string="Growing" name="filter_growing" domain="[('flock_stage', '=', 'growing')]"/>
+                <filter string="Harvesting" name="filter_harvesting" domain="[('flock_stage', '=', 'harvesting')]"/>
                 <filter string="Spent" name="filter_spent" domain="[('flock_stage', '=', 'spent')]"/>
+                <filter string="Closed" name="filter_closed" domain="[('flock_stage', '=', 'closed')]"/>
             </xpath>
             <xpath expr="//filter[@name='group_by_product']" position="before">
                 <filter name="group_by_farm" string="Farm Estate" context="{'group_by': 'farm_location_id'}"/>

@@ -13,9 +13,6 @@ class ResConfigSettings(models.TransientModel):
     farm_medication_consumption_location_id = fields.Many2one(
         related='company_id.farm_medication_consumption_location_id', readonly=False,
         domain="[('usage', '=', 'inventory'), ('company_id', 'in', [company_id, False])]")
-    farm_egg_location_id = fields.Many2one(
-        related='company_id.farm_egg_location_id', readonly=False,
-        domain="[('usage', '=', 'internal'), ('company_id', 'in', [company_id, False])]")
     farm_egg_medium_product_id = fields.Many2one(
         related='company_id.farm_egg_medium_product_id', readonly=False, domain=EGG_PRODUCT_DOMAIN)
     farm_egg_large_product_id = fields.Many2one(
@@ -29,6 +26,13 @@ class ResConfigSettings(models.TransientModel):
         domain="[('is_storable', '=', True), ('company_id', 'in', [company_id, False])]")
     farm_broiler_meat_location_id = fields.Many2one(
         related='company_id.farm_broiler_meat_location_id', readonly=False,
+        domain="[('usage', '=', 'internal'), ('company_id', 'in', [company_id, False])]")
+    farm_layer_meat_product_id = fields.Many2one(
+        related='company_id.farm_layer_meat_product_id', readonly=False,
+        domain="[('is_storable', '=', True), ('tracking', '=', 'lot'), ('is_farm_bird', '=', False), "
+               "('company_id', 'in', [company_id, False])]")
+    farm_layer_meat_location_id = fields.Many2one(
+        related='company_id.farm_layer_meat_location_id', readonly=False,
         domain="[('usage', '=', 'internal'), ('company_id', 'in', [company_id, False])]")
     laying_transition_mode = fields.Selection(related='company_id.laying_transition_mode', readonly=False)
     laying_min_age_weeks = fields.Float(related='company_id.laying_min_age_weeks', readonly=False)

@@ -31,11 +31,10 @@ class FarmEggCollection(models.Model):
     farm_location_id = fields.Many2one(
         related='cage_location_id.parent_farm_location_id', string='Farm', store=True, index=True)
     destination_location_id = fields.Many2one(
-        'stock.location', string='Egg Warehouse Location', required=True, check_company=True,
-        compute='_compute_destination_location', store=True, readonly=False, precompute=True,
-        domain="[('usage', '=', 'internal')]",
-        help="Warehouse cold-room destination for graded eggs: the farm's Egg Store Location, "
-             "else the company default from the Top Farm settings."
+        'stock.location', string='Egg Collection Location', check_company=True,
+        compute='_compute_destination_location', store=True, precompute=True,
+        help="Where the graded eggs of this collection are produced: the Egg Collection Location mapped on the "
+             "cage (Farm Infrastructure). Fixed once the eggs are produced."
     )
 
     product_medium_id = fields.Many2one(
@@ -110,12 +109,15 @@ class FarmEggCollection(models.Model):
             flocks = cage._get_flock_lots() if cage else self.env['stock.lot']
             rec.flock_lot_id = flocks if len(flocks) == 1 else rec.flock_lot_id
 
-    @api.depends('cage_location_id.parent_farm_location_id.farm_egg_location_id')
+    @api.depends('cage_location_id.farm_egg_location_id', 'state')
     def _compute_destination_location(self):
+        # Follows the cage while the collection is a draft; a produced (or cancelled) collection keeps the
+        # location its eggs really went to, whatever the cage is mapped to later.
         for rec in self:
-            rec.destination_location_id = (rec.cage_location_id.parent_farm_location_id.farm_egg_location_id
-                                           or rec.company_id.farm_egg_location_id
-                                           or rec.destination_location_id)
+            if rec.state in (False, 'draft'):
+                rec.destination_location_id = rec.cage_location_id.farm_egg_location_id
+            else:
+                rec.destination_location_id = rec.destination_location_id
 
     @api.depends('qty_medium', 'qty_large', 'qty_jumbo', 'qty_damage')
     def _compute_total_eggs(self):
@@ -242,7 +244,7 @@ class FarmEggCollection(models.Model):
         """Daily lot per flock: LOT-EGG-<flock lot>-<YYYYMMDD>, shared by all cages of the flock and stamped with
         its parent flock and production day (used for traceability and revenue reporting)."""
         self.ensure_one()
-        if product.tracking == 'none':
+        if not product.tracking or product.tracking == 'none':
             return self.env['stock.lot']
         flock_code = re.sub(r'[^A-Za-z0-9]+', '-', self.flock_lot_id.name).strip('-')
         name = f"LOT-EGG-{flock_code}-{self.date.strftime('%Y%m%d')}"
@@ -261,6 +263,10 @@ class FarmEggCollection(models.Model):
         if self.total_egg_qty <= 0:
             raise UserError(_("Cannot generate manufacturing orders for 0 eggs."))
         flock, cage = self.flock_lot_id, self.cage_location_id
+        if not self.destination_location_id:
+            raise UserError(_(
+                "Please configure the Egg Collection Location on Cage %(cage)s (Top Farm > Farm Configuration > "
+                "Farm Infrastructure) before producing eggs.", cage=cage.display_name))
         live_birds = cage.get_live_bird_count(flock)
         if not live_birds:
             raise UserError(_("Flock %(flock)s has no live birds in %(cage)s.", flock=flock.name, cage=cage.display_name))
