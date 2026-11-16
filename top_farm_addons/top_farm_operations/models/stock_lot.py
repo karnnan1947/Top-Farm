@@ -273,7 +273,7 @@ class StockLot(models.Model):
     def action_view_egg_stock(self):
         self.ensure_one()
         egg_lots = self.search([('farm_flock_lot_id', '=', self.id)])
-        action = self.env['ir.actions.act_window']._for_xml_id('stock.quantsact')
+        action = self.env['ir.actions.act_window']._for_xml_id('stock.stock_quant_action')
         action['domain'] = [('lot_id', 'in', egg_lots.ids), ('location_id.usage', '=', 'internal')]
         action['context'] = {
             'search_default_internal_loc': 1,
