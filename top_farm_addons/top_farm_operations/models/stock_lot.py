@@ -250,3 +250,50 @@ class StockLot(models.Model):
         action['domain'] = [('flock_lot_id', '=', self.id)]
         action['context'] = {'default_flock_lot_id': self.id}
         return action
+
+    flock_egg_stock_qty = fields.Integer(
+        string='Eggs on Hand', compute='_compute_flock_egg_stock',
+        help="On-hand egg units produced by this flock across all internal egg storage locations.")
+
+    def _compute_flock_egg_stock(self):
+        for lot in self:
+            if not lot.is_flock_batch or lot.flock_type != 'layer':
+                lot.flock_egg_stock_qty = 0
+                continue
+            egg_lots = self.search([('farm_flock_lot_id', '=', lot.id)])
+            if egg_lots:
+                quants = self.env['stock.quant'].search([
+                    ('lot_id', 'in', egg_lots.ids),
+                    ('location_id.usage', '=', 'internal'),
+                ])
+                lot.flock_egg_stock_qty = round(sum(quants.mapped('quantity')))
+            else:
+                lot.flock_egg_stock_qty = 0
+
+    def action_view_egg_stock(self):
+        self.ensure_one()
+        egg_lots = self.search([('farm_flock_lot_id', '=', self.id)])
+        action = self.env['ir.actions.act_window']._for_xml_id('stock.quantsact')
+        action['domain'] = [('lot_id', 'in', egg_lots.ids), ('location_id.usage', '=', 'internal')]
+        action['context'] = {
+            'search_default_internal_loc': 1,
+            'search_default_productgroup': 1,
+            'search_default_locationgroup': 1,
+        }
+        action['name'] = _("Egg Stock: %s", self.display_name)
+        return action
+
+    def _compute_can_rollback(self):
+        super()._compute_can_rollback()
+        flocks = self.filtered('is_flock_batch')
+        if not flocks:
+            return
+        for lot in flocks:
+            if lot.flock_type == 'broiler':
+                if lot.broiler_harvest_count > 0:
+                    lot.can_rollback_to_brooding = False
+            elif lot.flock_type == 'layer':
+                egg_count = self.env['farm.egg.collection'].search_count(
+                    [('flock_lot_id', '=', lot.id), ('state', '=', 'done')])
+                if egg_count > 0 or lot.broiler_harvest_count > 0:
+                    lot.can_rollback_to_rearing = False

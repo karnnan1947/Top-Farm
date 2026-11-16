@@ -27,6 +27,11 @@
                         string="Egg Collections"
                         invisible="flock_stage not in ('rearing', 'laying', 'spent') or flock_type == 'broiler'"
                         groups="top_farm_core.group_farm_user"/>
+                <button name="action_view_egg_stock" type="object" class="oe_stat_button" icon="inventory"
+                        invisible="flock_stage not in ('rearing', 'laying', 'spent') or flock_type == 'broiler'"
+                        groups="top_farm_core.group_farm_user">
+                    <field name="flock_egg_stock_qty" widget="statinfo" string="Eggs on Hand"/>
+                </button>
             </xpath>
             <xpath expr="//field[@name='flock_location_ids']" position="after">
                 <field name="rolling_hen_day_pct" invisible="flock_stage not in ('rearing', 'laying')"/>

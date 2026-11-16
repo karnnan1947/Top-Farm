@@ -16,9 +16,9 @@
                         <field name="available_birds"/>
                         <field name="birds_count" string="Birds Harvested (Qty)" invisible="flock_type == 'layer'"/>
                         <field name="birds_count" string="Birds Culled (Qty)" invisible="flock_type != 'layer'"/>
-                        <field name="average_weight"/>
-                        <field name="total_weight_kg"/>
-                        <field name="net_average_weight"/>
+                        <field name="total_weight_kg" string="Total Net Weight (kg)"/>
+                        <field name="average_weight" string="Average Weight (kg)"/>
+                        <field name="net_average_weight" string="Actual Avg Weight (kg/bird)" readonly="1"/>
                     </group>
                     <group string="Meat Production &amp; Valuation">
                         <field name="harvest_cost" string="Batch Cost of These Birds" invisible="flock_type == 'layer'"/>

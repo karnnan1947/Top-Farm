@@ -9,6 +9,8 @@
             <xpath expr="//sheet" position="before">
                 <header invisible="not is_flock_batch">
                     <field name="flock_type" invisible="1"/>
+                    <field name="can_rollback_to_brooding" invisible="1"/>
+                    <field name="can_rollback_to_rearing" invisible="1"/>
                     <!-- Layer flock: Brooding > Rearing / Pre-Laying > Laying > Spent -->
                     <button name="action_allocate_to_cages" string="Allocate to Cages" type="object"
                             class="oe_highlight" invisible="flock_stage != 'brooding' or flock_type == 'broiler'"
@@ -22,6 +24,10 @@
                             class="oe_highlight" invisible="flock_stage != 'brooding' or flock_type != 'broiler'"
                             confirm="Brooding is over: move this broiler batch to Growing? It can be harvested from then on."
                             groups="top_farm_core.group_farm_manager"/>
+                    <button name="action_back_to_brooding" string="Back to Brooding" type="object"
+                            invisible="not can_rollback_to_brooding"
+                            confirm="Move this broiler batch back to Brooding?"
+                            groups="top_farm_core.group_farm_manager"/>
                     <button name="action_start_laying_phase" string="Start Laying Phase" type="object"
                             class="oe_highlight" invisible="flock_stage != 'rearing'"
                             confirm="Start the Laying Phase? The pre-laying investment of the flock is locked and its daily feed becomes a component of the eggs."
@@ -31,7 +37,7 @@
                             confirm="Mark this flock as Spent / Depleted?"
                             groups="top_farm_core.group_farm_manager"/>
                     <button name="action_back_to_rearing" string="Back to Rearing" type="object"
-                            invisible="flock_stage != 'laying'"
+                            invisible="not can_rollback_to_rearing"
                             confirm="Move this flock back to Rearing / Pre-Laying? New feed logs will be expensed at once instead of staged."
                             groups="top_farm_core.group_farm_manager"/>
                     <button name="action_close_broiler_batch" string="Close Batch" type="object"

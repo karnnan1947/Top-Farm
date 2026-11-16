@@ -29,6 +29,7 @@ class StockLot(models.Model):
     def _compute_investment(self):
         flocks = self._origin.filtered('is_flock_batch')
         components = {}
+        product_rows = {}
         if flocks:
             # the report is a SQL view over stock moves and analytic lines: write pending changes first
             self.env.flush_all()
@@ -36,6 +37,18 @@ class StockLot(models.Model):
                     [('flock_lot_id', 'in', flocks.ids)], ['flock_lot_id', 'component'],
                     ['cost:sum', 'quantity:sum']):
                 components.setdefault(flock.id, {})[component] = (cost, quantity)
+
+            # Dynamic product-wise breakdown for feeds & medications
+            for flock, component, product, cost, quantity in self.env['farm.flock.investment.report'].sudo()._read_group(
+                    [('flock_lot_id', 'in', flocks.ids), ('component', 'in', ('feed', 'medication'))],
+                    ['flock_lot_id', 'component', 'product_id'],
+                    ['cost:sum', 'quantity:sum']):
+                product_rows.setdefault(flock.id, []).append({
+                    'component': component,
+                    'product_id': product,
+                    'cost': cost,
+                    'quantity': quantity,
+                })
         for lot in self:
             rows = components.get(lot._origin.id)
             if not lot.is_flock_batch:
@@ -44,6 +57,7 @@ class StockLot(models.Model):
                             'investment_summary': False})
                 continue
             rows = rows or {}
+            prods = product_rows.get(lot._origin.id, [])
             birds = lot.laying_start_bird_count if lot.laying_start_date else lot.live_bird_count
             placed = lot.initial_bird_count
             total = sum(cost for cost, __ in rows.values())
@@ -54,12 +68,13 @@ class StockLot(models.Model):
             lot.investment_cost_per_bird = per_bird
             lot.investment_cost_per_placed_bird = total / placed if placed else 0.0
             lot.investment_remaining_per_bird = cfg.pre_laying_target_cost - per_bird
-            lot.investment_summary = lot._render_investment_summary(rows, birds, placed, total, per_bird, cfg)
+            lot.investment_summary = lot._render_investment_summary(rows, birds, placed, total, per_bird, cfg, prods)
 
-    def _render_investment_summary(self, rows, birds, placed, total, per_bird, cfg):
-        """The Pre-Laying Flock Investment Report of the flock, as a table."""
+    def _render_investment_summary(self, rows, birds, placed, total, per_bird, cfg, prod_items=None):
+        """The Pre-Laying Flock Investment Report of the flock, with dynamic product-wise feed breakdown."""
         self.ensure_one()
         currency = self.currency_id
+        prod_items = prod_items or []
 
         def money(amount):
             return format_amount(self.env, amount, currency)
@@ -67,24 +82,71 @@ class StockLot(models.Model):
         def number(value, digits=0):
             return formatLang(self.env, value, digits=digits)
 
-        feed_uoms = self.env['farm.flock.investment.report'].sudo().search(
-            [('flock_lot_id', '=', self.id), ('component', '=', 'feed')]).product_id.uom_id
-        units = {
-            'chick': _("birds"),
-            'feed': feed_uoms.name if len(feed_uoms) == 1 else '',
-            'medication': _("units"),
-        }
         def per(cost, count):
             return money(cost / count if count else 0.0)
 
         body = Markup()
-        for component, label in COMPONENTS:
-            cost, quantity = rows.get(component, (0.0, 0.0))
-            qty_text = f"{number(quantity)} {units[component]}" if component in units and quantity else "—"
+
+        # 1. Day-Old Chick Purchase
+        chick_cost, chick_qty = rows.get('chick', (0.0, 0.0))
+        chick_qty_text = f"{number(chick_qty)} " + _("birds") if chick_qty else "—"
+        body += Markup(
+            "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
+            "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
+            _("Day-Old Chick Purchase"), chick_qty_text, money(chick_cost), per(chick_cost, placed), per(chick_cost, birds))
+
+        # 2. Dynamic Feeds: every feed product consumed gets its own row!
+        feed_items = [p for p in prod_items if p['component'] == 'feed']
+        if feed_items:
+            for item in feed_items:
+                product = item['product_id']
+                cost = item['cost']
+                qty = item['quantity']
+                uom = product.uom_id.name if product else 'kg'
+                qty_text = f"{number(qty)} {uom}" if qty else "—"
+                label = product.display_name if product else _("Feed")
+                body += Markup(
+                    "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
+                    "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
+                    label, qty_text, money(cost), per(cost, placed), per(cost, birds))
+        else:
+            cost, qty = rows.get('feed', (0.0, 0.0))
+            qty_text = f"{number(qty)} kg" if qty else "—"
             body += Markup(
                 "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
                 "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
-                label, qty_text, money(cost), per(cost, placed), per(cost, birds))
+                _("Starter & Grower Feed"), qty_text, money(cost), per(cost, placed), per(cost, birds))
+
+        # 3. Dynamic Vaccines & Medications
+        med_items = [p for p in prod_items if p['component'] == 'medication']
+        if med_items:
+            for item in med_items:
+                product = item['product_id']
+                cost = item['cost']
+                qty = item['quantity']
+                uom = product.uom_id.name if product else _("units")
+                qty_text = f"{number(qty)} {uom}" if qty else "—"
+                label = product.display_name if product else _("Vaccines & Medications")
+                body += Markup(
+                    "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
+                    "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
+                    label, qty_text, money(cost), per(cost, placed), per(cost, birds))
+        else:
+            cost, qty = rows.get('medication', (0.0, 0.0))
+            qty_text = f"{number(qty)} " + _("units") if qty else "—"
+            body += Markup(
+                "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
+                "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
+                _("Vaccines & Medications"), qty_text, money(cost), per(cost, placed), per(cost, birds))
+
+        # 4. Heating, Labour & Other Direct Costs
+        other_cost, __ = rows.get('other', (0.0, 0.0))
+        body += Markup(
+            "<tr><td>%s</td><td class='text-end'>%s</td><td class='text-end'>%s</td>"
+            "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (
+            _("Heating, Labour & Other Direct Costs"), "—", money(other_cost), per(other_cost, placed), per(other_cost, birds))
+
+        # 5. Total
         body += Markup(
             "<tr class='fw-bold border-top'><td>%s</td><td></td><td class='text-end'>%s</td>"
             "<td class='text-end'>%s</td><td class='text-end'>%s</td></tr>") % (

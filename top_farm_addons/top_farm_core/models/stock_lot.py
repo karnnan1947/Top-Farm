@@ -115,6 +115,13 @@ class StockLot(models.Model):
         string='Written Off at Closing', currency_field='currency_id', readonly=True, copy=False,
         help="Batch cost no harvest released (e.g. a batch lost to the last bird), expensed when it was closed.")
 
+    can_rollback_to_brooding = fields.Boolean(
+        string='Can Rollback to Brooding', compute='_compute_can_rollback',
+        help="Manager rollback to Brooding is permitted only if no downstream transactions have occurred.")
+    can_rollback_to_rearing = fields.Boolean(
+        string='Can Rollback to Rearing', compute='_compute_can_rollback',
+        help="Manager rollback to Rearing is permitted only if no egg collections or culling have occurred.")
+
     # -------------------------------------------------------------------------
     # CRUD
     # -------------------------------------------------------------------------
@@ -210,6 +217,11 @@ class StockLot(models.Model):
                 houses[lot.id] |= location
         for lot in self:
             lot.flock_location_ids = houses.get(lot._origin.id, self.env['stock.location'])
+
+    def _compute_can_rollback(self):
+        for lot in self:
+            lot.can_rollback_to_brooding = (lot.flock_type == 'broiler' and lot.flock_stage == 'growing')
+            lot.can_rollback_to_rearing = (lot.flock_type == 'layer' and lot.flock_stage == 'laying')
 
     # -------------------------------------------------------------------------
     # CONSTRAINTS
@@ -404,11 +416,26 @@ class StockLot(models.Model):
     def action_back_to_rearing(self):
         """Manager button: correct a flock that was moved to Laying by mistake."""
         self.ensure_one()
-        self._check_flock_stage_change(['laying'])
+        self._check_flock_stage_change(['laying'], flock_type='layer')
+        if not self.can_rollback_to_rearing:
+            raise UserError(_("Cannot revert this flock to Rearing: Egg collections or cullings have already been "
+                              "processed in the Laying phase."))
         self.write({'flock_stage': 'rearing', 'laying_start_date': False, 'laying_start_bird_count': 0,
                     'laying_notification_sent': False})
         self._post_stage_note(_("Flock moved back to Rearing / Pre-Laying by %(user)s at %(age)s weeks.",
                                 user=self.env.user.name, age=f"{self.flock_age_weeks:.1f}"))
+        return True
+
+    def action_back_to_brooding(self):
+        """Manager button: correct a broiler batch that was moved to Growing by mistake."""
+        self.ensure_one()
+        self._check_flock_stage_change(['growing'], flock_type='broiler')
+        if not self.can_rollback_to_brooding:
+            raise UserError(_("Cannot revert this broiler batch to Brooding: downstream transactions (such as harvests) "
+                              "have already occurred."))
+        self.flock_stage = 'brooding'
+        self._post_stage_note(_("Broiler batch moved back to Brooding by %(user)s at %(days)s days.",
+                                user=self.env.user.name, days=self.flock_age_days))
         return True
 
     def action_mark_spent(self):

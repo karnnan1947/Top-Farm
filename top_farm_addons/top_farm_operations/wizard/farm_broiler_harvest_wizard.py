@@ -33,12 +33,11 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         help="Free live birds of the flock in the shed or cage.")
     birds_count = fields.Integer(string='Birds Harvested (Qty)', required=True)
     average_weight = fields.Float(
-        string='Average Weight (kg)', digits=(16, 3), required=True,
-        help="Average live weight per bird; the total net weight follows it.")
+        string='Average Weight (kg)', digits=(16, 3),
+        help="Average live weight per bird. Enter average weight or enter total net weight; both auto-compute.")
     total_weight_kg = fields.Float(
-        string='Total Net Weight (kg)', digits=(16, 2), compute='_compute_total_weight_kg', store=True,
-        readonly=False,
-        help="Birds x average weight. Overwrite it with the weighbridge net weight: the meat is produced on it.")
+        string='Total Net Weight (kg)', digits=(16, 2),
+        help="Total net weight from the weighbridge slip. Enter total weight or average weight; both auto-compute.")
     net_average_weight = fields.Float(
         string='Actual Avg Weight (kg)', digits=(16, 3), compute='_compute_net_average_weight',
         help="Total net weight / birds harvested.")
@@ -91,10 +90,35 @@ class FarmBroilerHarvestWizard(models.TransientModel):
             wizard.available_birds = round(self.env['stock.quant']._get_available_quantity(
                 lot.product_id, shed, lot_id=lot, strict=True)) if lot and shed else 0
 
-    @api.depends('birds_count', 'average_weight')
-    def _compute_total_weight_kg(self):
-        for wizard in self:
-            wizard.total_weight_kg = round(wizard.birds_count * wizard.average_weight, 2)
+    @api.onchange('average_weight')
+    def _onchange_average_weight(self):
+        if self.birds_count and self.average_weight:
+            self.total_weight_kg = round(self.birds_count * self.average_weight, 2)
+
+    @api.onchange('total_weight_kg')
+    def _onchange_total_weight_kg(self):
+        if self.birds_count and self.total_weight_kg:
+            self.average_weight = round(self.total_weight_kg / self.birds_count, 3)
+
+    @api.onchange('birds_count')
+    def _onchange_birds_count(self):
+        if self.birds_count:
+            if self.average_weight and not self.total_weight_kg:
+                self.total_weight_kg = round(self.birds_count * self.average_weight, 2)
+            elif self.total_weight_kg:
+                self.average_weight = round(self.total_weight_kg / self.birds_count, 3)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            birds = vals.get('birds_count', 0)
+            avg = vals.get('average_weight', 0.0)
+            tot = vals.get('total_weight_kg', 0.0)
+            if birds and avg and not tot:
+                vals['total_weight_kg'] = round(birds * avg, 2)
+            elif birds and tot and not avg:
+                vals['average_weight'] = round(tot / birds, 3)
+        return super().create(vals_list)
 
     @api.depends('birds_count', 'total_weight_kg')
     def _compute_net_average_weight(self):
@@ -147,8 +171,12 @@ class FarmBroilerHarvestWizard(models.TransientModel):
         if self.birds_count <= 0 or self.birds_count > self.available_birds:
             raise ValidationError(_("Invalid bird count. Available in %(house)s: %(birds)s",
                                     house=self.location_id.display_name, birds=self.available_birds))
+        if self.total_weight_kg <= 0 and self.average_weight > 0 and self.birds_count > 0:
+            self.total_weight_kg = round(self.birds_count * self.average_weight, 2)
         if self.total_weight_kg <= 0:
             raise ValidationError(_("Enter the net weight of the birds harvested."))
+        if self.average_weight <= 0 and self.total_weight_kg > 0 and self.birds_count > 0:
+            self.average_weight = round(self.total_weight_kg / self.birds_count, 3)
         meat = self._get_meat_product()
         meat_qty = self._get_meat_qty(meat)
 
