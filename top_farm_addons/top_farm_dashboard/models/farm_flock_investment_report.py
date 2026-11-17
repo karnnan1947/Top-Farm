@@ -1,13 +1,13 @@
 from odoo import fields, models, tools
 from odoo.tools import SQL
 
-from .report_sql import cost_ctes
+from .report_sql import cost_ctes, flock_input_moves
 
 COMPONENTS = [
     ('chick', 'Day-Old Chick Purchase'),
-    ('feed', 'Starter & Grower Feed'),
+    ('feed', 'Feed'),
     ('medication', 'Vaccines & Medications'),
-    ('other', 'Heating, Labour & Other Direct Costs'),
+    ('other', 'Heating, Labour & Direct Overheads'),
 ]
 
 
@@ -27,8 +27,19 @@ class FarmFlockInvestmentReport(models.Model):
         string='Flock Stage', readonly=True)
     component = fields.Selection(COMPONENTS, string='Cost Component', readonly=True)
     product_id = fields.Many2one('product.product', string='Product', readonly=True)
+    uom_id = fields.Many2one('uom.uom', string='Unit', readonly=True)
     quantity = fields.Float(string='Quantity', readonly=True, digits=(16, 2))
     cost = fields.Monetary(string='Expenditure', currency_field='currency_id', readonly=True)
+    cost_source = fields.Selection(
+        [('stock', 'Stock Valuation'), ('product_cost', 'Product Cost (estimate)'), ('analytic', 'Analytic Items')],
+        string='Cost Source', readonly=True,
+        help="Stock Valuation: the value of the chick receipt or of the feed / medication consumed.\n"
+             "Product Cost (estimate): feed or medication consumed with no stock value (received at zero cost), "
+             "costed at the product's current cost until it is revalued.\n"
+             "Analytic Items: bills and other costs tagged to the flock's analytic account.")
+    estimated_cost = fields.Monetary(
+        string='Estimated Expenditure', currency_field='currency_id', readonly=True,
+        help="Part of the expenditure costed at the product's current cost, the stock move having no value.")
     placed_bird_count = fields.Integer(
         string='Placed Birds', readonly=True,
         help="Chicks placed in the brooding nursery under the flock lot, dead or alive.")
@@ -54,14 +65,18 @@ class FarmFlockInvestmentReport(models.Model):
         return super()._read_group_select(table, aggregate_spec)
 
     def init(self):
-        """Cumulative investment in a flock from day 0 until the Laying Phase starts: the chicks placed under
-        the flock lot, then the feed, medication and other direct costs tagged to its analytic account. Laying
-        feed (egg production orders, unharvested laying feed) and the mortality scraps are left out (the chick
-        cost already counts every bird placed, dead or alive)."""
+        """Cumulative investment in a flock from day 0 until the Laying Phase starts, product by product:
+        - the chicks placed under the flock lot (their receipt value);
+        - the feed and medication given to the flock, read from the consumption moves themselves, so a product
+          received at zero cost still shows its quantity (costed at the product's current cost until revalued);
+        - the other costs tagged to the flock's analytic account (heating, labour and other bills, feed bought
+          straight for the flock). The analytic items of the consumption moves are left out: the moves count.
+        Laying feed (egg production orders, unharvested laying feed) and the mortality scraps are left out (the
+        chick cost already counts every bird placed, dead or alive)."""
         tools.drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
-                WITH {cost_ctes(self.env)},
+                WITH {cost_ctes(self.env)}, {flock_input_moves(self.env)},
                 flock AS (
                     SELECT lot.id, lot.farm_location_id, lot.flock_stage, lot.laying_start_date,
                            COALESCE(lot.initial_bird_count, 0) AS placed_birds,
@@ -82,25 +97,36 @@ class FarmFlockInvestmentReport(models.Model):
                       JOIN stock_lot lot ON lot.id = sml.lot_id AND lot.is_flock_batch
                      WHERE sm.state = 'done' AND sm.is_in AND sm.farm_mortality_log_id IS NULL
                      GROUP BY sm.id, sml.lot_id
+                ),
+                u AS (
+                    SELECT c.date, c.company_id, c.flock_lot_id, 'chick' AS component, c.product_id,
+                           c.quantity, c.cost, 'stock' AS cost_source
+                      FROM chicks c
+                    UNION ALL
+                    SELECT fi.date, fi.company_id, fi.flock_lot_id, fi.input_type, fi.product_id,
+                           fi.sign * fi.qty, fi.cost, CASE WHEN fi.estimated THEN 'product_cost' ELSE 'stock' END
+                      FROM flock_input fi
+                     WHERE NOT fi.laying_phase
+                    UNION ALL
+                    SELECT co.date, co.company_id, co.flock_lot_id, co.cost_type, co.product_id,
+                           co.quantity, co.cost, 'analytic'
+                      FROM costs co
+                     WHERE co.flock_lot_id IS NOT NULL AND co.cost_type IN ('feed', 'medication', 'other')
+                       AND NOT co.laying_phase
+                       AND NOT EXISTS (SELECT 1 FROM flock_input fi WHERE fi.move_id = co.stock_move_id)
                 )
                 SELECT row_number() OVER () AS id, u.date, u.company_id, rc.currency_id, u.flock_lot_id,
-                       f.farm_location_id, f.flock_stage, u.component, u.product_id, u.quantity, u.cost,
+                       f.farm_location_id, f.flock_stage, u.component, u.product_id, pt.uom_id, u.quantity, u.cost,
+                       u.cost_source,
+                       CASE WHEN u.cost_source = 'product_cost' THEN u.cost ELSE 0 END AS estimated_cost,
                        f.placed_birds AS placed_bird_count,
                        CASE WHEN f.placed_birds > 0 THEN u.cost / f.placed_birds ELSE 0 END AS cost_per_placed_bird,
                        f.birds AS bird_count,
                        CASE WHEN f.birds > 0 THEN u.cost / f.birds ELSE 0 END AS cost_per_bird
-                  FROM (
-                        SELECT c.date, c.company_id, c.flock_lot_id, 'chick' AS component, c.product_id,
-                               c.quantity, c.cost
-                          FROM chicks c
-                        UNION ALL
-                        SELECT co.date, co.company_id, co.flock_lot_id, co.cost_type, co.product_id,
-                               co.quantity, co.cost
-                          FROM costs co
-                         WHERE co.flock_lot_id IS NOT NULL AND co.cost_type IN ('feed', 'medication', 'other')
-                           AND NOT co.laying_phase
-                  ) u
+                  FROM u
                   JOIN flock f ON f.id = u.flock_lot_id
                   JOIN res_company rc ON rc.id = u.company_id
+                  LEFT JOIN product_product pp ON pp.id = u.product_id
+                  LEFT JOIN product_template pt ON pt.id = pp.product_tmpl_id
                  WHERE f.laying_start_date IS NULL OR u.date <= f.laying_start_date
             )""")

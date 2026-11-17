@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Dashboard - Flock KPIs, Investment & Lifetime P&L',
-    'version': '20.0.2.5.0',
+    'version': '20.0.2.6.0',
     'category': 'Inventory/Poultry',
     'summary': 'Executive flock KPIs, pre-laying flock investment, delivery-lot invoice tagging and flock lifetime P&L',
     'description': """
@@ -8,8 +8,11 @@ Top Farm Business Intelligence
 ==============================
 - Executive dashboard: live population by flock stage, hen-day %, FCR (kg/dozen), mortality %, egg grade mix
   and trend, filtered by flock.
-- Pre-Laying Flock Investment Report: chick purchase, feed, vaccines and direct costs accumulated per bird
-  from day 0 until the Laying Phase locks it, against the target cost per bird.
+- Pre-Laying Flock Investment Report: chick purchase, then one line per feed and per vaccine / medication
+  product consumed (quantity, expenditure, cost per placed and per live bird) and the direct costs, accumulated
+  from day 0 until the Laying Phase locks it, against the target cost per bird. Feed and medication are read from
+  the consumption moves: stock received at zero cost still shows its quantity, costed at the product's current
+  Cost until "Revalue Zero-Cost Consumption" (Dashboard Settings) values it and posts the missing flock expense.
 - Delivery-lot invoice tagging: the flock analytic account of the delivered egg lot lands on the customer
   invoice line.
 - Size-weighted allocation of flock egg revenue to its cages, lot by lot.

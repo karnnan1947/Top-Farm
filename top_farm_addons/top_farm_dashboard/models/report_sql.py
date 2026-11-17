@@ -82,6 +82,64 @@ def plan_columns(env):
     return sorted(set(['account_id'] + [p._column_name() for p in plans]))
 
 
+def input_class(company, pt='pt', pc='pc'):
+    """SQL expression: 'feed' or 'medication' for a farm input product (template `pt`, category `pc`), from its Farm
+    Input Type or a product category mapped in the Dashboard Settings of `company` (children included); NULL for
+    any other product."""
+    return f"""CASE
+             WHEN {pt}.farm_input_type = 'feed' OR EXISTS (
+                      SELECT 1 FROM farm_dashboard_config cfg
+                        JOIN farm_dashboard_feed_categ_rel r ON r.config_id = cfg.id
+                        JOIN product_category c0 ON c0.id = r.category_id
+                       WHERE cfg.company_id = {company}
+                         AND {pc}.parent_path LIKE c0.parent_path || '%') THEN 'feed'
+             WHEN {pt}.farm_input_type = 'medication' OR EXISTS (
+                      SELECT 1 FROM farm_dashboard_config cfg
+                        JOIN farm_dashboard_med_categ_rel r ON r.config_id = cfg.id
+                        JOIN product_category c0 ON c0.id = r.category_id
+                       WHERE cfg.company_id = {company}
+                         AND {pc}.parent_path LIKE c0.parent_path || '%') THEN 'medication'
+           END"""
+
+
+def flock_input_moves(env):
+    """`flock_input`: the done stock moves of feed and medication given to a flock (feed logs: brooding, rearing,
+    medication, broiler batches; egg MO feed), read from the moves themselves so that a product received at zero
+    cost still shows the quantity consumed. A move with no stock value (received at zero cost, or a product that
+    is not valued) is costed at the product's current cost: `estimated`. A return into stock counts negative.
+    `laying_phase` marks the feed of the laying operation (egg MOs, staged laying feed expensed unharvested)."""
+    return f"""
+flock_input AS (
+    SELECT x.*,
+           CASE WHEN COALESCE(x.value, 0) <> 0 THEN -x.value ELSE x.sign * x.qty * x.unit_cost END AS cost,
+           COALESCE(x.value, 0) = 0 AS estimated
+      FROM (
+        SELECT sm.id AS move_id, sm.date::date AS date, sm.company_id, sm.farm_flock_lot_id AS flock_lot_id,
+               sm.product_id, pt.uom_id, sm.value,
+               CASE WHEN src.usage = 'internal' THEN 1 ELSE -1 END AS sign,
+               COALESCE((SELECT SUM(sml.quantity_product_uom) FROM stock_move_line sml WHERE sml.move_id = sm.id),
+                        0) AS qty,
+               COALESCE((pp.standard_price ->> sm.company_id::text)::numeric, 0) AS unit_cost,
+               {input_class('sm.company_id')} AS input_type,
+               (sm.raw_material_production_id IS NOT NULL OR COALESCE(fl.feeding_phase = 'laying', FALSE))
+                   AS laying_phase
+          FROM stock_move sm
+          JOIN stock_location src ON src.id = sm.location_id
+          JOIN stock_location dst ON dst.id = sm.location_dest_id
+          JOIN product_product pp ON pp.id = sm.product_id
+          JOIN product_template pt ON pt.id = pp.product_tmpl_id
+          LEFT JOIN product_category pc ON pc.id = pt.categ_id
+          LEFT JOIN stock_picking sp ON sp.id = sm.picking_id
+          LEFT JOIN farm_feed_log fl ON fl.id = sp.farm_feed_log_id
+         WHERE sm.state = 'done' AND sm.farm_flock_lot_id IS NOT NULL AND NOT COALESCE(pt.is_farm_bird, FALSE)
+           -- consumed from stock (or returned to it), never a move between two stock locations
+           AND (src.usage = 'internal') <> (dst.usage = 'internal')
+      ) x
+     WHERE x.input_type IS NOT NULL
+)
+"""
+
+
 def cost_ctes(env):
     """`costs`: every analytic cost line of a flock or cage account, with its flock, cage, farm and cost type:
     feed, medication, mortality (bird scraps and their reversals), depletion (birds leaving otherwise, e.g.
@@ -112,33 +170,24 @@ line_move AS (
 costs AS (
     SELECT aal.id, aal.date, aal.company_id, ld.flock_id AS flock_lot_id, ld.cage_id AS cage_location_id,
            COALESCE(flock.farm_location_id, cage.parent_farm_location_id) AS farm_location_id,
-           aal.product_id, aal.unit_amount AS quantity, -aal.amount AS cost,
+           aal.product_id, aal.unit_amount AS quantity, -aal.amount AS cost, sm.id AS stock_move_id,
            -- laying operation: feed of the egg MOs and staged laying feed expensed unharvested
            (sm.raw_material_production_id IS NOT NULL OR COALESCE(fl.feeding_phase = 'laying', FALSE)) AS laying_phase,
            CASE
              WHEN ga.account_type IN ('income', 'income_other') THEN NULL
              WHEN pt.is_farm_bird THEN
                   CASE WHEN sm.is_scrap OR sm.farm_mortality_log_id IS NOT NULL THEN 'mortality' ELSE 'depletion' END
-             WHEN pt.farm_input_type = 'feed' OR EXISTS (
-                      SELECT 1 FROM farm_dashboard_config cfg
-                        JOIN farm_dashboard_feed_categ_rel r ON r.config_id = cfg.id
-                        JOIN product_category c0 ON c0.id = r.category_id
-                       WHERE cfg.company_id = aal.company_id
-                         AND pc.parent_path LIKE c0.parent_path || '%') THEN 'feed'
-             WHEN pt.farm_input_type = 'medication' OR EXISTS (
-                      SELECT 1 FROM farm_dashboard_config cfg
-                        JOIN farm_dashboard_med_categ_rel r ON r.config_id = cfg.id
-                        JOIN product_category c0 ON c0.id = r.category_id
-                       WHERE cfg.company_id = aal.company_id
-                         AND pc.parent_path LIKE c0.parent_path || '%') THEN 'medication'
-             ELSE 'other'
+             ELSE COALESCE({input_class('aal.company_id')}, 'other')
            END AS cost_type
       FROM account_analytic_line aal
       JOIN line_dim ld ON ld.aal_id = aal.id
       LEFT JOIN stock_lot flock ON flock.id = ld.flock_id
       LEFT JOIN stock_location cage ON cage.id = ld.cage_id
       LEFT JOIN line_move lm ON lm.aal_id = aal.id
-      LEFT JOIN stock_move sm ON sm.id = lm.move_id
+      -- the items of a valuation entry line belong to its stock move even when they lost the link to it
+      -- (e.g. the distribution of the journal item was edited, which rebuilds its analytic items)
+      LEFT JOIN account_move_line aml ON aml.id = aal.move_line_id
+      LEFT JOIN stock_move sm ON sm.id = COALESCE(lm.move_id, aml.farm_stock_move_id)
       LEFT JOIN stock_picking sp ON sp.id = sm.picking_id
       LEFT JOIN farm_feed_log fl ON fl.id = sp.farm_feed_log_id
       LEFT JOIN account_account ga ON ga.id = aal.general_account_id

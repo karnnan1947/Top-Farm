@@ -2,6 +2,7 @@ from . import farm_dashboard_config
 from . import report_sql
 from . import farm_flock_investment_report
 from . import stock_lot
+from . import stock_move
 from . import sale_hook
 from . import analytic_plan
 from . import farm_revenue_allocation

@@ -7,6 +7,7 @@
             <pivot string="Pre-Laying Flock Investment">
                 <field name="flock_lot_id" type="row"/>
                 <field name="component" type="col"/>
+                <field name="quantity" type="measure"/>
                 <field name="cost" type="measure"/>
                 <field name="cost_per_placed_bird" type="measure"/>
                 <field name="cost_per_bird" type="measure"/>
@@ -34,7 +35,9 @@
                 <field name="component"/>
                 <field name="product_id"/>
                 <field name="quantity" sum="Quantity"/>
+                <field name="uom_id" optional="show"/>
                 <field name="cost" sum="Expenditure"/>
+                <field name="cost_source" optional="show" decoration-warning="cost_source == 'product_cost'"/>
                 <field name="cost_per_placed_bird" optional="show"/>
                 <field name="cost_per_bird" optional="show"/>
                 <field name="currency_id" column_invisible="1"/>
@@ -56,12 +59,16 @@
                 <filter name="filter_broiler" string="Broiler Batches"
                         domain="[('flock_stage', 'in', ('growing', 'harvesting', 'closed'))]"/>
                 <separator/>
+                <filter name="filter_estimated" string="Estimated at Product Cost"
+                        domain="[('cost_source', '=', 'product_cost')]"/>
+                <separator/>
                 <filter name="filter_date" string="Date" date="date"/>
                 <group>
                     <filter name="group_flock" string="Flock" context="{'group_by': 'flock_lot_id'}"/>
                     <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
                     <filter name="group_component" string="Cost Component" context="{'group_by': 'component'}"/>
                     <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_cost_source" string="Cost Source" context="{'group_by': 'cost_source'}"/>
                     <filter name="group_week" string="Week" context="{'group_by': 'date:week'}"/>
                 </group>
             </search>
@@ -74,9 +81,9 @@
         <field name="search_view_id" ref="view_farm_flock_investment_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No flock investment yet</p>
-            <p>The investment in a flock builds up from the chicks placed in the brooding nursery, through the
-               feed, vaccines and direct costs tagged to its analytic account, until the Laying Phase starts and
-               locks it. Group by flock to read the cost per placed bird (every chick bought) and per live bird
+            <p>The investment in a flock builds up from the chicks placed in the brooding nursery, through every
+               feed and vaccine product it consumed and the direct costs tagged to its analytic account, until the
+               Laying Phase starts and locks it. Group by flock to read the cost per placed bird (every chick bought) and per live bird
                (the cost each surviving hen carries).</p>
         </field>
     </record>

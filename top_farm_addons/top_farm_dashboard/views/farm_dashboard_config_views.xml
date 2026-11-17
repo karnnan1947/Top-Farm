@@ -9,6 +9,10 @@
                     <button name="action_resync_stock_analytics" type="object" string="Re-sync Stock Analytics"
                             groups="top_farm_core.group_farm_manager"
                             help="Re-price the analytic lines of all done feed, medication and bird moves at their current stock value (moves posted in a stock valuation entry keep the posted cost)."/>
+                    <button name="action_revalue_zero_cost_consumption" type="object"
+                            string="Revalue Zero-Cost Consumption" groups="top_farm_core.group_farm_manager"
+                            confirm="Feed and medication the flocks consumed at zero value will be valued at the current Cost of the product, as if it had been received at that cost (the zero-cost receipts are revalued), and their missing valuation entries posted. Continue?"
+                            help="Values the feed and medication consumed by the flocks at zero cost (stock received at zero cost) at the current Cost of the product, then posts the flock expense they missed."/>
                 </header>
                 <sheet>
                     <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
@@ -33,7 +37,9 @@
                     <p class="text-muted">Products with a Farm Input Type are classified as Feed or Medication without
                         any setting. Mortality loss needs no setting either: the scraps of Farm Bird products count as
                         mortality loss. Other costs tagged to a flock's analytic account (heating, labour and other
-                        bills) are reported as Other Direct Costs.</p>
+                        bills) are reported as Other Direct Costs. The Pre-Laying Flock Investment lists every feed and
+                        medication product the flock consumed, from the stock moves: a product received at zero cost
+                        still shows its quantity, costed at the product's current Cost until it is revalued.</p>
                 </sheet>
             </form>
         </field>
