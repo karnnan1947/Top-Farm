@@ -22,6 +22,9 @@ class FarmEggReport(models.Model):
     product_id = fields.Many2one('product.product', string='Egg Product', readonly=True)
     eggs = fields.Integer(string='Eggs', readonly=True)
     dozens = fields.Float(string='Dozens', readonly=True, digits=(16, 2))
+    on_hand_qty = fields.Float(
+        string='On Hand Quantity', readonly=True, digits=(16, 2),
+        help="Current real-time physical quantity of eggs on hand in this egg location.")
     bird_base = fields.Float(
         string='Birds (share)', readonly=True, digits=(16, 2),
         help="Live-bird snapshot of the collection, shared between the grades in proportion to their eggs, "
@@ -55,6 +58,21 @@ class FarmEggReport(models.Model):
                                     WHEN 'jumbo' THEN ec.product_jumbo_id ELSE ec.product_damage_id END AS product_id,
                        g.qty AS eggs,
                        g.qty / 12.0 AS dozens,
+                       COALESCE((
+                           SELECT SUM(q.quantity)
+                             FROM stock_quant q
+                             JOIN stock_location sl ON sl.id = q.location_id AND sl.usage = 'internal'
+                             JOIN mrp_production mo ON mo.farm_collection_id = ec.id AND mo.product_id = (
+                                 CASE g.grade WHEN 'large' THEN ec.product_large_id 
+                                              WHEN 'medium' THEN ec.product_medium_id 
+                                              WHEN 'jumbo' THEN ec.product_jumbo_id 
+                                              ELSE ec.product_damage_id END
+                             )
+                             JOIN mrp_production_stock_lot_rel rel ON rel.mrp_production_id = mo.id
+                            WHERE q.lot_id = rel.stock_lot_id
+                              AND q.location_id = ec.destination_location_id
+                              AND q.quantity > 0
+                       ), 0.0) AS on_hand_qty,
                        ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty AS bird_base,
                        ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty AS feed_kg,
                        CASE WHEN ec.confirmed_live_bird_count > 0

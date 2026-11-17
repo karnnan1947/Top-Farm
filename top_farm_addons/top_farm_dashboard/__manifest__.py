@@ -1,6 +1,6 @@
 {
     'name': 'Top Farm Dashboard - Flock KPIs, Investment & Lifetime P&L',
-    'version': '20.0.2.4.0',
+    'version': '20.0.2.5.0',
     'category': 'Inventory/Poultry',
     'summary': 'Executive flock KPIs, pre-laying flock investment, delivery-lot invoice tagging and flock lifetime P&L',
     'description': """
