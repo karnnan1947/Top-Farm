@@ -22,9 +22,6 @@ class FarmEggReport(models.Model):
     product_id = fields.Many2one('product.product', string='Egg Product', readonly=True)
     eggs = fields.Integer(string='Eggs', readonly=True)
     dozens = fields.Float(string='Dozens', readonly=True, digits=(16, 2))
-    on_hand_qty = fields.Float(
-        string='On Hand Quantity', readonly=True, digits=(16, 2),
-        help="Current real-time physical quantity of eggs on hand in this egg location.")
     bird_base = fields.Float(
         string='Birds (share)', readonly=True, digits=(16, 2),
         help="Live-bird snapshot of the collection, shared between the grades in proportion to their eggs, "
@@ -37,6 +34,9 @@ class FarmEggReport(models.Model):
                                help="Eggs / live birds x 100, as a ratio of the sums of the group.")
     fcr = fields.Float(string='FCR (kg/dozen)', readonly=True, digits=(16, 3),
                        help="Feed kg / dozens of eggs, as a ratio of the sums of the group.")
+    on_hand_qty = fields.Float(
+        string='On Hand Quantity', readonly=True, digits=(16, 2),
+        help="Current real-time physical quantity of eggs on hand in this egg location.")
 
     def _read_group_select(self, table, aggregate_spec):
         # ratios of sums, never a sum or an average of row percentages
@@ -58,6 +58,14 @@ class FarmEggReport(models.Model):
                                     WHEN 'jumbo' THEN ec.product_jumbo_id ELSE ec.product_damage_id END AS product_id,
                        g.qty AS eggs,
                        g.qty / 12.0 AS dozens,
+                       ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty AS bird_base,
+                       ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty AS feed_kg,
+                       CASE WHEN ec.confirmed_live_bird_count > 0
+                            THEN g.qty::float / (ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty) * 100
+                            ELSE 0 END AS hen_day_pct,
+                       CASE WHEN g.qty > 0
+                            THEN (ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty) / (g.qty / 12.0)
+                            ELSE 0 END AS fcr,
                        COALESCE((
                            SELECT SUM(q.quantity)
                              FROM stock_quant q
@@ -72,15 +80,7 @@ class FarmEggReport(models.Model):
                             WHERE q.lot_id = rel.stock_lot_id
                               AND q.location_id = ec.destination_location_id
                               AND q.quantity > 0
-                       ), 0.0) AS on_hand_qty,
-                       ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty AS bird_base,
-                       ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty AS feed_kg,
-                       CASE WHEN ec.confirmed_live_bird_count > 0
-                            THEN g.qty::float / (ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty) * 100
-                            ELSE 0 END AS hen_day_pct,
-                       CASE WHEN g.qty > 0
-                            THEN (ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty) / (g.qty / 12.0)
-                            ELSE 0 END AS fcr
+                       ), 0.0) AS on_hand_qty
                   FROM farm_egg_collection ec
                  CROSS JOIN LATERAL (VALUES (1, 'large', ec.qty_large), (2, 'medium', ec.qty_medium),
                                             (3, 'jumbo', ec.qty_jumbo), (4, 'damage', ec.qty_damage)) AS g(n, grade, qty)
