@@ -49,7 +49,7 @@
         <field name="name">farm.egg.stock.report.search</field>
         <field name="model">farm.egg.stock.report</field>
         <field name="arch" type="xml">
-            <search string="Egg Stock Analysis">
+            <search>
                 <field name="farm_location_id"/>
                 <field name="cage_location_id"/>
                 <field name="location_id"/>
@@ -61,7 +61,7 @@
                 <filter name="grade_large" string="Large" domain="[('grade', '=', 'large')]"/>
                 <filter name="grade_medium" string="Medium" domain="[('grade', '=', 'medium')]"/>
                 <filter name="grade_damage" string="Damaged / Cracked" domain="[('grade', '=', 'damage')]"/>
-                <group expand="1" string="Group By">
+                <group>
                     <filter name="group_flock" string="Flock Batch" context="{'group_by': 'flock_lot_id'}"/>
                     <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
                     <filter name="group_location" string="Egg Store Location" context="{'group_by': 'location_id'}"/>

@@ -66,7 +66,7 @@ class FarmEggStockReport(models.Model):
                        END AS grade,
                        q.quantity AS on_hand_qty,
                        q.quantity / 12.0 AS dozens,
-                       COALESCE(q.value, 0.0) AS value
+                       COALESCE(q.quantity * (pp.standard_price->>q.company_id::text)::numeric, 0.0) AS value
                   FROM stock_quant q
                   JOIN stock_location sl ON sl.id = q.location_id AND sl.usage = 'internal'
                   JOIN product_product pp ON pp.id = q.product_id
