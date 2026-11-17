@@ -58,10 +58,10 @@ class FarmEggStockReport(models.Model):
                        q.lot_id,
                        q.product_id,
                        CASE 
-                         WHEN pp.id = rc.farm_egg_large_product_id OR pt.name ILIKE '%Large%' THEN 'large'
-                         WHEN pp.id = rc.farm_egg_medium_product_id OR pt.name ILIKE '%Medium%' THEN 'medium'
-                         WHEN pp.id = rc.farm_egg_jumbo_product_id OR pt.name ILIKE '%Jumbo%' THEN 'jumbo'
-                         WHEN pp.id = rc.farm_egg_damage_product_id OR pt.name ILIKE '%Damage%' OR pt.name ILIKE '%Crack%' THEN 'damage'
+                         WHEN pp.id = rc.farm_egg_large_product_id OR pp.default_code = 'EGG-LRG' OR COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Large%' THEN 'large'
+                         WHEN pp.id = rc.farm_egg_medium_product_id OR pp.default_code = 'EGG-MED' OR COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Medium%' THEN 'medium'
+                         WHEN pp.id = rc.farm_egg_jumbo_product_id OR pp.default_code = 'EGG-JMB' OR COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Jumbo%' THEN 'jumbo'
+                         WHEN pp.id = rc.farm_egg_damage_product_id OR pp.default_code = 'EGG-DMG' OR COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Damage%' OR COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Crack%' THEN 'damage'
                          ELSE 'other'
                        END AS grade,
                        q.quantity AS on_hand_qty,
@@ -77,6 +77,10 @@ class FarmEggStockReport(models.Model):
                   LEFT JOIN stock_location cage ON cage.farm_egg_location_id = q.location_id
                  WHERE q.quantity > 0
                    AND (pp.id IN (rc.farm_egg_large_product_id, rc.farm_egg_medium_product_id, rc.farm_egg_jumbo_product_id, rc.farm_egg_damage_product_id)
-                        OR (pt.name ILIKE '%Egg%' AND pt.name NOT ILIKE '%Tray%' AND pt.name NOT ILIKE '%Carton%' AND pt.name NOT ILIKE '%Box%'))
+                        OR pp.default_code IN ('EGG-LRG', 'EGG-MED', 'EGG-JMB', 'EGG-DMG')
+                        OR (COALESCE(pt.name->>'en_US', pt.name::text) ILIKE '%Egg%' 
+                            AND COALESCE(pt.name->>'en_US', pt.name::text) NOT ILIKE '%Tray%' 
+                            AND COALESCE(pt.name->>'en_US', pt.name::text) NOT ILIKE '%Carton%' 
+                            AND COALESCE(pt.name->>'en_US', pt.name::text) NOT ILIKE '%Box%'))
             )
         """)
