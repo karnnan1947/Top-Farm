@@ -30,6 +30,7 @@ Top Farm Business Intelligence
         'views/farm_flock_investment_views.xml',
         'views/farm_mortality_bi_views.xml',
         'views/farm_egg_report_views.xml',
+        'views/farm_egg_stock_views.xml',
         'views/farm_feed_report_views.xml',
         'views/farm_dashboard_views.xml',
         'views/farm_dashboard_menus.xml',

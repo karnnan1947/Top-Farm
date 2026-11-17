@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_farm_egg_stock_pivot" model="ir.ui.view">
+        <field name="name">farm.egg.stock.report.pivot</field>
+        <field name="model">farm.egg.stock.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Egg Stock On-Hand Analysis" sample="1">
+                <field name="flock_lot_id" type="row"/>
+                <field name="cage_location_id" type="row"/>
+                <field name="grade" type="col"/>
+                <field name="location_id" type="col"/>
+                <field name="on_hand_qty" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_farm_egg_stock_graph" model="ir.ui.view">
+        <field name="name">farm.egg.stock.report.graph</field>
+        <field name="model">farm.egg.stock.report</field>
+        <field name="arch" type="xml">
+            <graph string="Egg Stock On-Hand by Cage &amp; Grade" type="bar" stacked="True" sample="1">
+                <field name="cage_location_id"/>
+                <field name="grade"/>
+                <field name="on_hand_qty" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_farm_egg_stock_list" model="ir.ui.view">
+        <field name="name">farm.egg.stock.report.list</field>
+        <field name="model">farm.egg.stock.report</field>
+        <field name="arch" type="xml">
+            <list string="Egg Stock On-Hand" create="false" edit="false">
+                <field name="farm_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="product_id"/>
+                <field name="grade"/>
+                <field name="lot_id"/>
+                <field name="on_hand_qty" sum="Total On-Hand"/>
+                <field name="dozens" sum="Total Dozens"/>
+                <field name="value" sum="Total Valuation"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_farm_egg_stock_search" model="ir.ui.view">
+        <field name="name">farm.egg.stock.report.search</field>
+        <field name="model">farm.egg.stock.report</field>
+        <field name="arch" type="xml">
+            <search string="Egg Stock Analysis">
+                <field name="farm_location_id"/>
+                <field name="cage_location_id"/>
+                <field name="location_id"/>
+                <field name="flock_lot_id"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <separator/>
+                <filter name="grade_jumbo" string="Jumbo" domain="[('grade', '=', 'jumbo')]"/>
+                <filter name="grade_large" string="Large" domain="[('grade', '=', 'large')]"/>
+                <filter name="grade_medium" string="Medium" domain="[('grade', '=', 'medium')]"/>
+                <filter name="grade_damage" string="Damaged / Cracked" domain="[('grade', '=', 'damage')]"/>
+                <group expand="1" string="Group By">
+                    <filter name="group_flock" string="Flock Batch" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter name="group_cage" string="Cage" context="{'group_by': 'cage_location_id'}"/>
+                    <filter name="group_location" string="Egg Store Location" context="{'group_by': 'location_id'}"/>
+                    <filter name="group_farm" string="Farm Estate" context="{'group_by': 'farm_location_id'}"/>
+                    <filter name="group_grade" string="Egg Grade" context="{'group_by': 'grade'}"/>
+                    <filter name="group_product" string="Egg Product" context="{'group_by': 'product_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_farm_egg_stock_report" model="ir.actions.act_window">
+        <field name="name">Egg Stock On-Hand Analysis</field>
+        <field name="res_model">farm.egg.stock.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_farm_egg_stock_search"/>
+        <field name="context">{'search_default_group_flock': 1, 'search_default_group_cage': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No eggs currently on hand.
+            </p>
+            <p>
+                This report displays real-time physical inventory of fresh eggs in each farm cage location.
+            </p>
+        </field>
+    </record>
+</odoo>

@@ -12,9 +12,14 @@
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
     <menuitem id="menu_top_farm_egg_report" name="Egg Production Analysis"
               parent="menu_top_farm_analytics_root" action="action_farm_egg_report" sequence="22"/>
+    <menuitem id="menu_top_farm_egg_stock_report" name="Egg Stock On-Hand Analysis"
+              parent="menu_top_farm_analytics_root" action="action_farm_egg_stock_report" sequence="23"/>
     <menuitem id="menu_top_farm_feed_report" name="Feed Consumption Analysis"
-              parent="menu_top_farm_analytics_root" action="action_farm_feed_report" sequence="23"
+              parent="menu_top_farm_analytics_root" action="action_farm_feed_report" sequence="24"
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+    <menuitem id="menu_farm_egg_stock" name="Egg Stock On-Hand"
+              parent="top_farm_operations.menu_top_farm_operations"
+              action="action_farm_egg_stock_report" sequence="25"/>
     <menuitem id="menu_top_farm_revenue_allocation" name="Flock Revenue Allocation"
               parent="menu_top_farm_analytics_root" action="action_farm_revenue_allocation" sequence="25"
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>

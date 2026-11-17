@@ -9,4 +9,5 @@ from . import farm_profitability_report
 from . import farm_mortality_bi
 from . import farm_dashboard
 from . import farm_egg_report
+from . import farm_egg_stock_report
 from . import farm_feed_report
