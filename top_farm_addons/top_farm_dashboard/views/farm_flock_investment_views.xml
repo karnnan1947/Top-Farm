@@ -56,8 +56,6 @@
                         domain="[('flock_stage', 'in', ('brooding', 'rearing'))]"/>
                 <filter name="filter_locked" string="Locked (Laying or Spent)"
                         domain="[('flock_stage', 'in', ('laying', 'spent'))]"/>
-                <filter name="filter_broiler" string="Broiler Batches"
-                        domain="[('flock_stage', 'in', ('growing', 'harvesting', 'closed'))]"/>
                 <separator/>
                 <filter name="filter_estimated" string="Estimated at Product Cost"
                         domain="[('cost_source', '=', 'product_cost')]"/>
@@ -75,16 +73,124 @@
         </field>
     </record>
     <record id="action_farm_flock_investment_report" model="ir.actions.act_window">
-        <field name="name">Pre-Laying Flock Investment</field>
+        <field name="name">Pre-Laying Flock Investment (Layers)</field>
         <field name="res_model">farm.flock.investment.report</field>
         <field name="view_mode">pivot,graph,list</field>
+        <field name="domain">[('flock_type', '=', 'layer')]</field>
+        <field name="context">{'search_default_group_flock': 1}</field>
         <field name="search_view_id" ref="view_farm_flock_investment_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_farm_flock_investment_pivot')}),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_farm_flock_investment_graph')}),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_farm_flock_investment_list')})]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">No flock investment yet</p>
-            <p>The investment in a flock builds up from the chicks placed in the brooding nursery, through every
+            <p class="o_view_nocontent_smiling_face">No layer flock investment yet</p>
+            <p>The investment in a layer flock (pullets: a biological asset under construction) builds up from the chicks placed in the brooding nursery, through every
                feed and vaccine product it consumed and the direct costs tagged to its analytic account, until the
                Laying Phase starts and locks it. Group by flock to read the cost per placed bird (every chick bought) and per live bird
-               (the cost each surviving hen carries).</p>
+               (the cost each surviving hen carries). Broiler batches have their own report:
+               Broiler Lifecycle Investment.</p>
+        </field>
+    </record>
+
+    <!-- Broiler Lifecycle Investment: the rearing cost of a broiler batch from placement to the harvest -->
+    <record id="view_farm_broiler_investment_pivot" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.broiler.pivot</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <pivot string="Broiler Lifecycle Investment">
+                <field name="flock_lot_id" type="row"/>
+                <field name="component" type="col"/>
+                <field name="cost" type="measure"/>
+                <field name="cost_per_placed_bird" type="measure"/>
+                <field name="cost_per_kg" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_farm_broiler_investment_graph" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.broiler.graph</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <graph string="Cumulative Rearing Cost (WIP)" type="line" cumulated="1">
+                <field name="date" interval="day"/>
+                <field name="cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_farm_broiler_investment_list" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.broiler.list</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list string="Broiler Lifecycle Investment" create="false" edit="false">
+                <field name="date"/>
+                <field name="flock_lot_id" string="Broiler Batch"/>
+                <field name="farm_location_id" optional="show"/>
+                <field name="flock_stage" optional="show"/>
+                <field name="component"/>
+                <field name="product_id"/>
+                <field name="quantity" sum="Quantity"/>
+                <field name="uom_id" optional="show"/>
+                <field name="cost" sum="Expenditure"/>
+                <field name="cost_source" optional="show" decoration-warning="cost_source == 'product_cost'"/>
+                <field name="cost_per_placed_bird" optional="show"/>
+                <field name="cost_per_bird" optional="hide"/>
+                <field name="kg_produced" optional="show"/>
+                <field name="cost_per_kg" optional="show"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_farm_broiler_investment_search" model="ir.ui.view">
+        <field name="name">farm.flock.investment.report.broiler.search</field>
+        <field name="model">farm.flock.investment.report</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="flock_lot_id" string="Broiler Batch"/>
+                <field name="farm_location_id"/>
+                <field name="product_id"/>
+                <filter name="filter_live" string="Live Batches (Rearing Cost in WIP)"
+                        domain="[('flock_stage', 'in', ('brooding', 'growing', 'harvesting'))]"/>
+                <filter name="filter_closed" string="Closed Batches" domain="[('flock_stage', '=', 'closed')]"/>
+                <separator/>
+                <filter name="filter_estimated" string="Estimated at Product Cost"
+                        domain="[('cost_source', '=', 'product_cost')]"/>
+                <separator/>
+                <filter name="filter_date" string="Date" date="date"/>
+                <group>
+                    <filter name="group_flock" string="Broiler Batch" context="{'group_by': 'flock_lot_id'}"/>
+                    <filter name="group_farm" string="Farm" context="{'group_by': 'farm_location_id'}"/>
+                    <filter name="group_stage" string="Stage" context="{'group_by': 'flock_stage'}"/>
+                    <filter name="group_component" string="Cost Component" context="{'group_by': 'component'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_cost_source" string="Cost Source" context="{'group_by': 'cost_source'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'date:day'}"/>
+                    <filter name="group_week" string="Week" context="{'group_by': 'date:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_farm_broiler_investment_report" model="ir.actions.act_window">
+        <field name="name">Broiler Lifecycle Investment</field>
+        <field name="res_model">farm.flock.investment.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="domain">[('flock_type', '=', 'broiler')]</field>
+        <field name="context">{'search_default_group_flock': 1}</field>
+        <field name="search_view_id" ref="view_farm_broiler_investment_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_farm_broiler_investment_pivot')}),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_farm_broiler_investment_graph')}),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_farm_broiler_investment_list')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No broiler batch cost yet</p>
+            <p>The rearing cost of each broiler batch from placement to the harvest: the day-old chicks, every feed
+               (booster, starter, finisher) and vaccine / medication product consumed, and the direct costs tagged to
+               the batch's analytic account. It stays capitalized as work in progress (Broiler Cost Pool) until the
+               harvests release it to the meat sold by weight. Group by batch to read the cost per placed bird and per
+               kg of live weight produced (harvested plus still in the shed).</p>
         </field>
     </record>
 </odoo>

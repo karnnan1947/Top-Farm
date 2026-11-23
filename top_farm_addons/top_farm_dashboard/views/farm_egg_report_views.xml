@@ -11,6 +11,7 @@
                 <field name="grade" type="col"/>
                 <field name="eggs" type="measure"/>
                 <field name="on_hand_qty" type="measure"/>
+                <field name="live_bird_count" type="measure"/>
                 <field name="hen_day_pct" type="measure"/>
             </pivot>
         </field>
@@ -36,11 +37,13 @@
                 <field name="farm_location_id" optional="show"/>
                 <field name="cage_location_id"/>
                 <field name="destination_location_id" optional="show"/>
+                <field name="live_bird_count"/>
+                <field name="collection_egg_qty" optional="show"/>
                 <field name="grade"/>
                 <field name="eggs" sum="Eggs Produced"/>
                 <field name="on_hand_qty" sum="Total On-Hand"/>
                 <field name="dozens" sum="Dozens"/>
-                <field name="hen_day_pct" optional="hide"/>
+                <field name="hen_day_pct" optional="show"/>
                 <field name="fcr" optional="hide"/>
             </list>
         </field>

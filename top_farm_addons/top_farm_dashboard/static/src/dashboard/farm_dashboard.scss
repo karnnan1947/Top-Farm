@@ -17,3 +17,8 @@
     .o_farm_card_sub { font-size: 0.8rem; opacity: 0.75; }
     .o_farm_chart { position: relative; height: 280px; margin-top: 8px; }
 }
+
+.o_farm_broiler_dashboard {
+    .o_farm_batch_panel { height: auto; }
+    .o_farm_batch_table tbody tr { cursor: pointer; }
+}

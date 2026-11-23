@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Dashboard access per user, set with the two checkboxes of the Farm Dashboards tab of the user form.
+         No privilege: under the Poultry Farm privilege they would become choices of its Operator / Manager selector. -->
+    <record id="group_farm_layer_dashboard" model="res.groups">
+        <field name="name">Farm: Layer Dashboard Access</field>
+        <field name="comment">Layer Performance Dashboard and the layer reports (daily egg production, egg production analysis, egg stock analysis, pre-laying flock investment).</field>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+    <record id="group_farm_broiler_dashboard" model="res.groups">
+        <field name="name">Farm: Broiler Dashboard Access</field>
+        <field name="comment">Broiler Performance Dashboard and the Broiler Lifecycle Investment report.</field>
+        <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+</odoo>

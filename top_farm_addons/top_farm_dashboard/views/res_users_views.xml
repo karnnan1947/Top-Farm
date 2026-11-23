@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_farm_dashboards" model="ir.ui.view">
+        <field name="name">res.users.form.farm.dashboards</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Farm Dashboards" name="farm_dashboards_access" invisible="share">
+                    <group string="Dedicated Performance Dashboard Access">
+                        <field name="enable_flock_dashboard" widget="boolean_toggle"/>
+                        <field name="enable_broiler_dashboard" widget="boolean_toggle"/>
+                    </group>
+                    <div class="text-muted">
+                        Layer and broiler farms are run by different teams: enable the Flock / Layer Dashboard for the
+                        layer team, the Broiler Dashboard for the broiler team, both for the general farm managers.
+                        Each also shows the reports of its kind (layer: daily egg production, egg production and egg
+                        stock analysis, pre-laying flock investment; broiler: broiler lifecycle investment). The user
+                        must also be a Farm Operator / User; the investment reports stay reserved to Farm Managers and
+                        accounting.
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

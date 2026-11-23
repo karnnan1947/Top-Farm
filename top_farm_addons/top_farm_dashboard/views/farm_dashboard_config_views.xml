@@ -18,12 +18,18 @@
                     <div class="alert alert-warning" role="alert" invisible="not accounting_warning">
                         <field name="accounting_warning" readonly="1" nolabel="1"/>
                     </div>
-                    <group string="Targets">
-                        <field name="company_id" groups="base.group_multi_company" readonly="1"/>
-                        <field name="target_hen_day_pct"/>
-                        <field name="target_fcr"/>
-                        <field name="mortality_alert_pct"/>
-                        <field name="low_margin_pct"/>
+                    <group>
+                        <group string="Layer Targets">
+                            <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                            <field name="target_hen_day_pct"/>
+                            <field name="target_fcr"/>
+                            <field name="mortality_alert_pct"/>
+                            <field name="low_margin_pct"/>
+                        </group>
+                        <group string="Broiler Targets">
+                            <field name="target_broiler_fcr"/>
+                            <field name="broiler_mortality_alert_pct"/>
+                        </group>
                     </group>
                     <group string="Pre-Laying Flock Investment">
                         <field name="currency_id" invisible="1"/>

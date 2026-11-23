@@ -16,6 +16,12 @@ class FarmDashboardConfig(models.Model):
     mortality_alert_pct = fields.Float(
         string='Mortality Alert (%)', default=0.0, digits=(16, 3),
         help="The mortality card turns red above this rate. 0 = use the Mortality Controls threshold.")
+    target_broiler_fcr = fields.Float(
+        string='Broiler FCR Target (kg feed / kg live weight, at most)', default=1.65, digits=(16, 3),
+        help="Feed consumed by a broiler batch over the live weight it produced (harvested plus still in the shed).")
+    broiler_mortality_alert_pct = fields.Float(
+        string='Broiler Cumulative Mortality Alert (%)', default=5.0, digits=(16, 2),
+        help="The broiler mortality card turns red above this share of the chicks placed (whole batch, 35-42 days).")
     low_margin_pct = fields.Float(string='Low Margin Warning (%)', default=30.0,
                                   help="Flocks below this lifetime margin are highlighted in the profitability report.")
     currency_id = fields.Many2one(related='company_id.currency_id')
@@ -40,12 +46,14 @@ class FarmDashboardConfig(models.Model):
     _company_unique = models.Constraint('unique(company_id)', 'There is already a dashboard setting for this company.')
 
     @api.constrains('target_hen_day_pct', 'target_fcr', 'mortality_alert_pct', 'low_margin_pct',
-                    'pre_laying_target_cost', 'pre_laying_target_cost_max')
+                    'pre_laying_target_cost', 'pre_laying_target_cost_max', 'target_broiler_fcr',
+                    'broiler_mortality_alert_pct')
     def _check_values(self):
         for cfg in self:
-            if not 0 <= cfg.target_hen_day_pct <= 100 or not 0 <= cfg.mortality_alert_pct <= 100:
+            if any(not 0 <= pct <= 100 for pct in (cfg.target_hen_day_pct, cfg.mortality_alert_pct,
+                                                     cfg.broiler_mortality_alert_pct)):
                 raise ValidationError(_("Percentages must be between 0 and 100."))
-            if cfg.target_fcr < 0:
+            if cfg.target_fcr < 0 or cfg.target_broiler_fcr < 0:
                 raise ValidationError(_("The FCR target cannot be negative."))
             if not 0 <= cfg.pre_laying_target_cost <= cfg.pre_laying_target_cost_max:
                 raise ValidationError(_("The pre-laying cost target must be positive and at most the upper benchmark."))

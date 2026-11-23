@@ -12,6 +12,7 @@ class FarmEggReport(models.Model):
 
     date = fields.Date(readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
+    collection_id = fields.Many2one('farm.egg.collection', string='Egg Collection', readonly=True)
     flock_lot_id = fields.Many2one('stock.lot', string='Flock', readonly=True)
     farm_location_id = fields.Many2one('stock.location', string='Farm', readonly=True)
     cage_location_id = fields.Many2one('stock.location', string='Cage', readonly=True)
@@ -21,6 +22,13 @@ class FarmEggReport(models.Model):
     grade = fields.Selection(GRADES, string='Egg Grade', readonly=True)
     product_id = fields.Many2one('product.product', string='Egg Product', readonly=True)
     eggs = fields.Integer(string='Eggs', readonly=True)
+    live_bird_count = fields.Integer(
+        string='Live Birds', readonly=True,
+        help="Live birds of the flock in the cage when the eggs were produced (snapshot of the collection). "
+             "A subtotal counts the birds of each collection once, whatever grades it shows.")
+    collection_egg_qty = fields.Integer(
+        string='Collection Total Eggs', readonly=True,
+        help="All the eggs of the collection, every grade. A subtotal counts each collection once.")
     dozens = fields.Float(string='Dozens', readonly=True, digits=(16, 2))
     bird_base = fields.Float(
         string='Birds (share)', readonly=True, digits=(16, 2),
@@ -43,6 +51,12 @@ class FarmEggReport(models.Model):
         if aggregate_spec == 'hen_day_pct:sum':
             return SQL("CASE WHEN SUM(%(base)s) = 0 THEN 0 ELSE SUM(%(eggs)s)::float / SUM(%(base)s) * 100 END",
                        eggs=table['eggs'], base=table['bird_base'])
+        if aggregate_spec in ('live_bird_count:sum', 'collection_egg_qty:sum'):
+            # once per collection of the group (its grade rows repeat the collection's figure)
+            column = 'confirmed_live_bird_count' if aggregate_spec.startswith('live') else 'total_egg_qty'
+            return SQL("(SELECT COALESCE(SUM(c.%(column)s), 0) FROM farm_egg_collection c "
+                       "WHERE c.id = ANY(ARRAY_AGG(DISTINCT %(collection)s)))",
+                       column=SQL.identifier(column), collection=table['collection_id'])
         if aggregate_spec == 'fcr:sum':
             return SQL("CASE WHEN SUM(%(dz)s) = 0 THEN 0 ELSE SUM(%(feed)s)::float / SUM(%(dz)s) END",
                        feed=table['feed_kg'], dz=table['dozens'])
@@ -52,11 +66,14 @@ class FarmEggReport(models.Model):
         tools.drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
-                SELECT ec.id * 10 + g.n AS id, ec.date, ec.company_id, ec.flock_lot_id, ec.farm_location_id,
+                SELECT ec.id * 10 + g.n AS id, ec.id AS collection_id, ec.date, ec.company_id, ec.flock_lot_id,
+                       ec.farm_location_id,
                        ec.cage_location_id, ec.destination_location_id, g.grade,
                        CASE g.grade WHEN 'large' THEN ec.product_large_id WHEN 'medium' THEN ec.product_medium_id
                                     WHEN 'jumbo' THEN ec.product_jumbo_id ELSE ec.product_damage_id END AS product_id,
                        g.qty AS eggs,
+                       COALESCE(ec.confirmed_live_bird_count, 0) AS live_bird_count,
+                       ec.total_egg_qty AS collection_egg_qty,
                        g.qty / 12.0 AS dozens,
                        ec.confirmed_live_bird_count::float * g.qty / ec.total_egg_qty AS bird_base,
                        ec.feed_consumed_qty::float * g.qty / ec.total_egg_qty AS feed_kg,

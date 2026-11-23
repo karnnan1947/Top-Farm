@@ -13,7 +13,7 @@ COMPONENTS = [
 
 class FarmFlockInvestmentReport(models.Model):
     _name = 'farm.flock.investment.report'
-    _description = 'Pre-Laying Flock Investment'
+    _description = 'Flock Investment (Pre-Laying Layers, Broiler Lifecycle)'
     _auto = False
     _order = 'date desc, id'
 
@@ -22,6 +22,11 @@ class FarmFlockInvestmentReport(models.Model):
     currency_id = fields.Many2one('res.currency', readonly=True)
     flock_lot_id = fields.Many2one('stock.lot', string='Flock', readonly=True)
     farm_location_id = fields.Many2one('stock.location', string='Farm', readonly=True)
+    flock_type = fields.Selection(
+        [('layer', 'Layer Flock'), ('broiler', 'Broiler Batch')], string='Flock Type', readonly=True,
+        help="Layer flock: its investment builds up from day 0 until the Laying Phase locks it (biological asset).\n"
+             "Broiler batch: its rearing cost builds up from placement until the harvest releases it to the meat "
+             "(work in progress over its whole lifecycle).")
     flock_stage = fields.Selection(
         selection=lambda self: self.env['stock.lot']._fields['flock_stage'].selection,
         string='Flock Stage', readonly=True)
@@ -53,19 +58,27 @@ class FarmFlockInvestmentReport(models.Model):
     cost_per_bird = fields.Monetary(
         string='Cost / Live Bird', currency_field='currency_id', readonly=True,
         help="Expenditure per surviving bird: the cost each hen carries, the cost of the birds lost included.")
+    kg_produced = fields.Float(
+        string='Live Weight Produced (kg)', readonly=True, digits=(16, 2),
+        help="Broiler batch: meat harvested (net weight of the harvests) plus the estimated biomass still in the "
+             "shed (live birds x estimated average weight).")
+    cost_per_kg = fields.Monetary(
+        string='Cost / kg Live Weight', currency_field='currency_id', readonly=True,
+        help="Broiler batch: expenditure per kg of live weight produced (harvested plus still in the shed).")
 
     def _read_group_select(self, table, aggregate_spec):
         # A cost per bird (and the bird basis) only adds up within one flock: leave mixed groups empty
-        if aggregate_spec in ('cost_per_bird:sum', 'cost_per_placed_bird:sum'):
+        if aggregate_spec in ('cost_per_bird:sum', 'cost_per_placed_bird:sum', 'cost_per_kg:sum'):
             return SQL("CASE WHEN COUNT(DISTINCT %(flock)s) = 1 THEN SUM(%(value)s) END",
                        flock=table['flock_lot_id'], value=table[aggregate_spec.split(':')[0]])
-        if aggregate_spec in ('bird_count:sum', 'placed_bird_count:sum'):
+        if aggregate_spec in ('bird_count:sum', 'placed_bird_count:sum', 'kg_produced:sum'):
             return SQL("CASE WHEN COUNT(DISTINCT %(flock)s) = 1 THEN MAX(%(value)s) END",
                        flock=table['flock_lot_id'], value=table[aggregate_spec.split(':')[0]])
         return super()._read_group_select(table, aggregate_spec)
 
     def init(self):
-        """Cumulative investment in a flock from day 0 until the Laying Phase starts, product by product:
+        """Cumulative investment in a flock, product by product: a layer flock from day 0 until the Laying Phase
+        starts (pre-laying investment), a broiler batch from placement over its whole lifecycle (rearing cost):
         - the chicks placed under the flock lot (their receipt value);
         - the feed and medication given to the flock, read from the consumption moves themselves, so a product
           received at zero cost still shows its quantity (costed at the product's current cost until revalued);
@@ -77,16 +90,27 @@ class FarmFlockInvestmentReport(models.Model):
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 WITH {cost_ctes(self.env)}, {flock_input_moves(self.env)},
-                flock AS (
-                    SELECT lot.id, lot.farm_location_id, lot.flock_stage, lot.laying_start_date,
+                flock0 AS (
+                    SELECT lot.id, lot.farm_location_id, lot.flock_type, lot.flock_stage, lot.laying_start_date,
                            COALESCE(lot.initial_bird_count, 0) AS placed_birds,
-                           CASE WHEN lot.laying_start_date IS NOT NULL THEN lot.laying_start_bird_count
-                                ELSE COALESCE((SELECT SUM(q.quantity) FROM stock_quant q
-                                                 JOIN stock_location l ON l.id = q.location_id
-                                                WHERE q.lot_id = lot.id AND l.usage = 'internal'), 0)
-                           END AS birds
+                           COALESCE(lot.laying_start_bird_count, 0) AS laying_birds,
+                           COALESCE(lot.broiler_avg_weight, 0) AS avg_weight,
+                           COALESCE((SELECT SUM(q.quantity) FROM stock_quant q
+                                       JOIN stock_location l ON l.id = q.location_id
+                                      WHERE q.lot_id = lot.id AND l.usage = 'internal'), 0) AS live_birds,
+                           COALESCE((SELECT SUM(mo.farm_broiler_weight_kg) FROM mrp_production mo
+                                      WHERE mo.farm_broiler_lot_id = lot.id AND mo.state = 'done'), 0) AS harvested_kg
                       FROM stock_lot lot
                      WHERE lot.is_flock_batch
+                ),
+                flock AS (
+                    SELECT f.id, f.farm_location_id, f.flock_type, f.flock_stage, f.laying_start_date, f.placed_birds,
+                           CASE WHEN f.laying_start_date IS NOT NULL THEN f.laying_birds ELSE f.live_birds END AS birds,
+                           CASE WHEN f.flock_type = 'broiler'
+                                THEN f.harvested_kg + CASE WHEN f.flock_stage IN ('brooding', 'growing', 'harvesting')
+                                                           THEN f.live_birds * f.avg_weight ELSE 0 END
+                                ELSE 0 END AS kg
+                      FROM flock0 f
                 ),
                 chicks AS (
                     SELECT sm.date::date AS date, sm.company_id, sml.lot_id AS flock_lot_id, sm.product_id,
@@ -116,13 +140,16 @@ class FarmFlockInvestmentReport(models.Model):
                        AND NOT EXISTS (SELECT 1 FROM flock_input fi WHERE fi.move_id = co.stock_move_id)
                 )
                 SELECT row_number() OVER () AS id, u.date, u.company_id, rc.currency_id, u.flock_lot_id,
-                       f.farm_location_id, f.flock_stage, u.component, u.product_id, pt.uom_id, u.quantity, u.cost,
+                       f.farm_location_id, f.flock_type, f.flock_stage, u.component, u.product_id, pt.uom_id,
+                       u.quantity, u.cost,
                        u.cost_source,
                        CASE WHEN u.cost_source = 'product_cost' THEN u.cost ELSE 0 END AS estimated_cost,
                        f.placed_birds AS placed_bird_count,
                        CASE WHEN f.placed_birds > 0 THEN u.cost / f.placed_birds ELSE 0 END AS cost_per_placed_bird,
                        f.birds AS bird_count,
-                       CASE WHEN f.birds > 0 THEN u.cost / f.birds ELSE 0 END AS cost_per_bird
+                       CASE WHEN f.birds > 0 THEN u.cost / f.birds ELSE 0 END AS cost_per_bird,
+                       f.kg AS kg_produced,
+                       CASE WHEN f.kg > 0 THEN u.cost / f.kg ELSE 0 END AS cost_per_kg
                   FROM u
                   JOIN flock f ON f.id = u.flock_lot_id
                   JOIN res_company rc ON rc.id = u.company_id

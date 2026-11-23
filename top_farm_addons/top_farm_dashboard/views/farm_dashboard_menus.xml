@@ -1,27 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Layer items need the Flock / Layer Dashboard checkbox of the user, broiler items the Broiler Dashboard one
+         (Farm Dashboards tab of the user form). The investment reports also stay reserved to Farm Managers and
+         accounting: a menu whose report the user cannot read is hidden. On an upgrade a menuitem adds its groups to the
+         existing ones: "-group" takes the former manager / accounting groups off the two investment menus. -->
     <menuitem id="menu_top_farm_analytics_root" name="Farm Analytics &amp; KPIs"
               parent="top_farm_core.menu_top_farm_root" sequence="50"/>
-    <menuitem id="menu_top_farm_dashboard_kpis" name="Flock Performance Dashboard"
-              parent="menu_top_farm_analytics_root" action="action_farm_dashboard_kpis" sequence="10"/>
+    <menuitem id="menu_top_farm_dashboard_layer" name="Layer Performance Dashboard"
+              parent="menu_top_farm_analytics_root" action="action_farm_dashboard_layer" sequence="10"
+              groups="top_farm_dashboard.group_farm_layer_dashboard"/>
+    <menuitem id="menu_top_farm_dashboard_broiler" name="Broiler Performance Dashboard"
+              parent="menu_top_farm_analytics_root" action="action_farm_dashboard_broiler" sequence="15"
+              groups="top_farm_dashboard.group_farm_broiler_dashboard"/>
     <menuitem id="menu_top_farm_profitability" name="Flock Lifetime Profitability"
               parent="menu_top_farm_analytics_root" action="action_farm_profitability_report" sequence="20"
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
-    <menuitem id="menu_top_farm_flock_investment" name="Pre-Laying Flock Investment"
+    <menuitem id="menu_top_farm_flock_investment" name="Pre-Laying Flock Investment (Layers)"
               parent="menu_top_farm_analytics_root" action="action_farm_flock_investment_report" sequence="21"
-              groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
+              groups="-top_farm_core.group_farm_manager,-account.group_account_invoice,top_farm_dashboard.group_farm_layer_dashboard"/>
+    <menuitem id="menu_top_farm_broiler_investment" name="Broiler Lifecycle Investment (Broilers)"
+              parent="menu_top_farm_analytics_root" action="action_farm_broiler_investment_report" sequence="22"
+              groups="-top_farm_core.group_farm_manager,-account.group_account_invoice,top_farm_dashboard.group_farm_broiler_dashboard"/>
+    <menuitem id="menu_top_farm_egg_daily_report" name="Daily Egg Production &amp; Hen-Day %"
+              parent="menu_top_farm_analytics_root" action="action_farm_egg_daily_report" sequence="23"
+              groups="top_farm_dashboard.group_farm_layer_dashboard"/>
     <menuitem id="menu_top_farm_egg_report" name="Egg Production Analysis"
-              parent="menu_top_farm_analytics_root" action="action_farm_egg_report" sequence="22"/>
+              parent="menu_top_farm_analytics_root" action="action_farm_egg_report" sequence="24"
+              groups="top_farm_dashboard.group_farm_layer_dashboard"/>
     <menuitem id="menu_top_farm_egg_stock_report" name="Egg Stock On-Hand Analysis"
-              parent="menu_top_farm_analytics_root" action="action_farm_egg_stock_report" sequence="23"/>
+              parent="menu_top_farm_analytics_root" action="action_farm_egg_stock_report" sequence="25"
+              groups="top_farm_dashboard.group_farm_layer_dashboard"/>
     <menuitem id="menu_top_farm_feed_report" name="Feed Consumption Analysis"
-              parent="menu_top_farm_analytics_root" action="action_farm_feed_report" sequence="24"
+              parent="menu_top_farm_analytics_root" action="action_farm_feed_report" sequence="26"
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
     <menuitem id="menu_farm_egg_stock" name="Egg Stock On-Hand"
               parent="top_farm_operations.menu_top_farm_operations"
               action="action_farm_egg_stock_report" sequence="25"/>
     <menuitem id="menu_top_farm_revenue_allocation" name="Flock Revenue Allocation"
-              parent="menu_top_farm_analytics_root" action="action_farm_revenue_allocation" sequence="25"
+              parent="menu_top_farm_analytics_root" action="action_farm_revenue_allocation" sequence="27"
               groups="top_farm_core.group_farm_manager,account.group_account_invoice"/>
     <menuitem id="menu_top_farm_mortality_bi" name="Mortality BI Analysis"
               parent="menu_top_farm_analytics_root" action="action_farm_mortality_bi" sequence="30"/>

@@ -12,6 +12,11 @@
                         groups="top_farm_core.group_farm_manager,account.group_account_invoice">
                     <field name="investment_cost_per_bird" widget="statinfo" string="Invested / Bird"/>
                 </button>
+                <button name="action_view_broiler_investment_report" type="object" class="oe_stat_button"
+                        icon="payments" invisible="not is_flock_batch or flock_type != 'broiler'"
+                        groups="top_farm_core.group_farm_manager,account.group_account_invoice">
+                    <field name="investment_cost_per_placed_bird" widget="statinfo" string="Invested / Chick"/>
+                </button>
             </xpath>
             <xpath expr="//group[@name='flock_group']" position="after">
                 <!-- A broiler batch shows its own batch costing (top_farm_core) instead -->

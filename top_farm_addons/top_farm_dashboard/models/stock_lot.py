@@ -177,3 +177,13 @@ class StockLot(models.Model):
                              'pivot_column_groupby': []}
         action['display_name'] = _("Pre-Laying Investment of %s", self.name)
         return action
+
+    def action_view_broiler_investment_report(self):
+        self.ensure_one()
+        action = self.env['ir.actions.act_window']._for_xml_id(
+            'top_farm_dashboard.action_farm_broiler_investment_report')
+        action['domain'] = [('flock_lot_id', '=', self.id)]
+        action['context'] = {'search_default_group_component': 1, 'search_default_group_product': 1,
+                             'pivot_column_groupby': []}
+        action['display_name'] = _("Lifecycle Investment of %s", self.name)
+        return action
