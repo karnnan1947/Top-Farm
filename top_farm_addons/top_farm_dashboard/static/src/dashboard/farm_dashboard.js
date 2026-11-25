@@ -198,14 +198,18 @@ export class LayerDashboard extends FarmDashboardBase {
         ]);
     }
 
-    openDailyReport() {
+    openEggReport() {
         this.openList(
-            _t("Daily Egg Production & Hen-Day %"),
-            "farm.egg.daily.report",
+            _t("Egg Production Analysis"),
+            "farm.egg.report",
             [...this.periodDomain, ...this.flockDomain],
             { search_default_group_day: 1, search_default_group_flock: 1 },
-            [[false, "list"], [false, "pivot"], [false, "graph"]]
+            [[false, "pivot"], [false, "graph"], [false, "list"]]
         );
+    }
+
+    openDailyReport() {
+        this.openEggReport();
     }
 
     openMortality() {

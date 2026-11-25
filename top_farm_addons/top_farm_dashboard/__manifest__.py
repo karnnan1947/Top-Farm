@@ -1,8 +1,8 @@
 {
     'name': 'Top Farm Dashboard - Flock KPIs, Investment & Lifetime P&L',
-    'version': '20.0.2.8.0',
+    'version': '20.0.2.8.1',
     'category': 'Inventory/Poultry',
-    'summary': 'Layer and broiler KPI dashboards, daily hen-day report, flock investment, lifetime P&L',
+    'summary': 'Layer and broiler KPI dashboards, flock investment, lifetime P&L, egg production analysis',
     'description': """
 Top Farm Business Intelligence
 ==============================

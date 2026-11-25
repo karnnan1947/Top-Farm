@@ -21,9 +21,10 @@
     <menuitem id="menu_top_farm_broiler_investment" name="Broiler Lifecycle Investment (Broilers)"
               parent="menu_top_farm_analytics_root" action="action_farm_broiler_investment_report" sequence="22"
               groups="-top_farm_core.group_farm_manager,-account.group_account_invoice,top_farm_dashboard.group_farm_broiler_dashboard"/>
+    <!-- Hidden: Egg Production Analysis already contains Hen-Day % and daily breakdown -->
     <menuitem id="menu_top_farm_egg_daily_report" name="Daily Egg Production &amp; Hen-Day %"
               parent="menu_top_farm_analytics_root" action="action_farm_egg_daily_report" sequence="23"
-              groups="top_farm_dashboard.group_farm_layer_dashboard"/>
+              groups="top_farm_dashboard.group_farm_layer_dashboard" active="False"/>
     <menuitem id="menu_top_farm_egg_report" name="Egg Production Analysis"
               parent="menu_top_farm_analytics_root" action="action_farm_egg_report" sequence="24"
               groups="top_farm_dashboard.group_farm_layer_dashboard"/>
